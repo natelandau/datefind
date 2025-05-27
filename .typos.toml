@@ -1,0 +1,17 @@
+[default]
+    default.locale = "en_us"
+
+    [default.extend-words]
+        ect  = "ect"
+        haa  = "haa"
+        hae  = "hae"
+        ist  = "ist"
+        nd   = "nd"
+        pont = "pont"
+        taht = "taht"
+        tast = "tast"
+        tha  = "tha"
+
+# Add words to the dictionary from the common misspellings list
+[files]
+    extend-exclude = ["*_cache", ".cache", ".venv", "tmp"]
