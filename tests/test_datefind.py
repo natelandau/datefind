@@ -22,144 +22,6 @@ def test_raise_error_on_invalid_timezone():
 
 
 @pytest.mark.parametrize(
-    ("text", "first", "expected"),
-    [
-        pytest.param(
-            "march twenty second 2025 and sep. thirteenth 1999 and also DEC second 2024. July the fourth 2023",
-            "month",
-            [
-                datetime(2025, 3, 22, tzinfo=ZoneInfo("UTC")),
-                datetime(1999, 9, 13, tzinfo=ZoneInfo("UTC")),
-                datetime(2024, 12, 2, tzinfo=ZoneInfo("UTC")),
-                datetime(2023, 7, 4, tzinfo=ZoneInfo("UTC")),
-            ],
-            id="MONTH-NUMBER-YYYY",
-        ),
-        pytest.param(
-            "05 12 24 and 9819 is another day",
-            "month",
-            [
-                datetime(2024, 5, 12, tzinfo=ZoneInfo("UTC")),
-                datetime(2019, 9, 8, tzinfo=ZoneInfo("UTC")),
-            ],
-            id="MM-DD-YY (xx_xx_xx) month",
-        ),
-        pytest.param(
-            "Hello, world! 2024-01-12 and 2024-1-9.",
-            "MONTH",
-            [
-                datetime(2024, 1, 12, tzinfo=ZoneInfo("UTC")),
-                datetime(2024, 1, 9, tzinfo=ZoneInfo("UTC")),
-            ],
-            id="YYYY-MM-DD (yyyy_xx_xx) month",
-        ),
-        pytest.param(
-            "Hello, world! 2024-1-12 and 2024-12-9.",
-            "day",
-            [
-                datetime(2024, 12, 1, tzinfo=ZoneInfo("UTC")),
-                datetime(2024, 9, 12, tzinfo=ZoneInfo("UTC")),
-            ],
-            id="YYYY-DD-MM (yyyy_xx_xx) day",
-        ),
-        pytest.param(
-            "Hello, world! 2024-01-12 and 2024-1-9.",
-            "year",
-            [
-                datetime(2024, 1, 12, tzinfo=ZoneInfo("UTC")),
-                datetime(2024, 1, 9, tzinfo=ZoneInfo("UTC")),
-            ],
-            id="YYYY-MM-DD (yyyy_xx_xx) year",
-        ),
-        pytest.param(
-            "Someday it will be January 23rd, 2025 but its March 1st, 1999.",
-            "month",
-            [
-                datetime(2025, 1, 23, tzinfo=ZoneInfo("UTC")),
-                datetime(1999, 3, 1, tzinfo=ZoneInfo("UTC")),
-            ],
-            id="MONTH-DD-YYYY",
-        ),
-        pytest.param(
-            "february 1st 2024 and aug-2-2024",
-            "month",
-            [
-                datetime(2024, 2, 1, tzinfo=ZoneInfo("UTC")),
-                datetime(2024, 8, 2, tzinfo=ZoneInfo("UTC")),
-            ],
-            id="MONTH-DD-YYYY",
-        ),
-        pytest.param(
-            "foo 10-January-2024 bar and 1-april-2024. twenty fifth of august 1999",
-            "month",
-            [
-                datetime(2024, 1, 10, tzinfo=ZoneInfo("UTC")),
-                datetime(2024, 4, 1, tzinfo=ZoneInfo("UTC")),
-                datetime(1999, 8, 25, tzinfo=ZoneInfo("UTC")),
-            ],
-            id="DD-MONTH-YYYY",
-        ),
-        pytest.param(
-            "foo mar 11 feb bar or January-eleventh",
-            "month",
-            [
-                datetime(datetime.now(ZoneInfo("UTC")).year, 3, 11, tzinfo=ZoneInfo("UTC")),
-                datetime(datetime.now(ZoneInfo("UTC")).year, 1, 11, tzinfo=ZoneInfo("UTC")),
-            ],
-            id="MONTH-DD",
-        ),
-        pytest.param(
-            "it's 1999 December 1st and 2024 jan 10th",
-            "month",
-            [
-                datetime(1999, 12, 1, tzinfo=ZoneInfo("UTC")),
-                datetime(2024, 1, 10, tzinfo=ZoneInfo("UTC")),
-            ],
-            id="YYYY_MONTH_DD",
-        ),
-        pytest.param(
-            "foo 1999 dec bar",
-            "month",
-            [datetime(1999, 12, 1, tzinfo=ZoneInfo("UTC"))],
-            id="YYYY-MONTH",
-        ),
-        pytest.param(
-            "foo dec 1999 bar and january 2024 something",
-            "month",
-            [
-                datetime(1999, 12, 1, tzinfo=ZoneInfo("UTC")),
-                datetime(2024, 1, 1, tzinfo=ZoneInfo("UTC")),
-            ],
-            id="MONTH-YYYY",
-        ),
-        pytest.param(
-            "today and yesterday and tomorrow and last week and next week",
-            "month",
-            [
-                datetime.now(ZoneInfo("UTC")),
-                datetime.now(ZoneInfo("UTC")) - timedelta(days=1),
-                datetime.now(ZoneInfo("UTC")) + timedelta(days=1),
-                datetime.now(ZoneInfo("UTC")) - timedelta(days=7),
-                datetime.now(ZoneInfo("UTC")) + timedelta(days=7),
-            ],
-            id="Natural date",
-        ),
-    ],
-)
-def test_find_dates(text: str, first: str, expected: list[datetime], debug) -> None:
-    """Verify extracting dates from text returns expected datetime objects."""
-    # Given: Text containing dates and expected datetime
-
-    # When: Finding dates in the text
-    dates = list(find_dates(text, first=first, tz="UTC"))
-
-    # Then: Each found date matches expected datetime
-    assert len(dates) == len(expected)
-    for i, date in enumerate(dates):
-        assert date.date.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
-
-
-@pytest.mark.parametrize(
     ("text", "expected"),
     [
         ("01-12", []),
@@ -181,6 +43,8 @@ def test_find_dates(text: str, first: str, expected: list[datetime], debug) -> N
         ("2111999", [datetime(1999, 2, 11)]),
         ("2022-12", [datetime(2022, 12, 1)]),
         ("12 2022", [datetime(2022, 12, 1)]),
+        ("sep. 4", [datetime(datetime.now(ZoneInfo("UTC")).year, 9, 4)]),
+        ("sept. fifth", [datetime(datetime.now(ZoneInfo("UTC")).year, 9, 5)]),
         ("2022, 12, 24", [datetime(2022, 12, 24)]),
         ("23 march, 2020", [datetime(2020, 3, 23)]),
         ("23rd, march-2020", [datetime(2020, 3, 23)]),
@@ -208,7 +72,7 @@ def test_find_dates(text: str, first: str, expected: list[datetime], debug) -> N
         ("next week", [datetime.now(ZoneInfo("UTC")) + timedelta(days=7)]),
     ],
 )
-def test_find_dates_short(text, expected, debug):
+def test_find_dates(text, expected, debug):
     """Verify extracting dates from short text returns expected datetime objects."""
     # Given: Text containing dates and expected datetime
 
@@ -222,6 +86,81 @@ def test_find_dates_short(text, expected, debug):
         assert date.text == text
         assert date.match == text
         assert date.span == (0, len(text))
+
+
+def test_find_dates_in_file(debug):
+    """Verify extracting dates from a large text input returns expected datetime objects."""
+    file = Path(__file__).parent / "fixture.txt"
+    text = file.read_text()
+
+    expected = [
+        datetime(2025, 3, 22, tzinfo=ZoneInfo("UTC")),
+        datetime(1999, 9, 13, tzinfo=ZoneInfo("UTC")),
+        datetime(2024, 12, 2, tzinfo=ZoneInfo("UTC")),
+        datetime(2023, 7, 4, tzinfo=ZoneInfo("UTC")),
+        datetime(2024, 5, 12, tzinfo=ZoneInfo("UTC")),
+        datetime(2019, 9, 8, tzinfo=ZoneInfo("UTC")),
+        datetime(2024, 1, 12, tzinfo=ZoneInfo("UTC")),
+        datetime(2024, 1, 9, tzinfo=ZoneInfo("UTC")),
+        datetime(2025, 1, 23, tzinfo=ZoneInfo("UTC")),
+        datetime(1999, 3, 1, tzinfo=ZoneInfo("UTC")),
+        datetime(2024, 2, 1, tzinfo=ZoneInfo("UTC")),
+        datetime(2024, 8, 2, tzinfo=ZoneInfo("UTC")),
+        datetime(2024, 1, 10, tzinfo=ZoneInfo("UTC")),
+        datetime(2024, 4, 1, tzinfo=ZoneInfo("UTC")),
+        datetime(1999, 8, 25, tzinfo=ZoneInfo("UTC")),
+        datetime(datetime.now(ZoneInfo("UTC")).year, 1, 11, tzinfo=ZoneInfo("UTC")),
+        datetime(datetime.now(ZoneInfo("UTC")).year, 3, 11, tzinfo=ZoneInfo("UTC")),
+        datetime(1999, 12, 1, tzinfo=ZoneInfo("UTC")),
+        datetime(2024, 1, 10, tzinfo=ZoneInfo("UTC")),
+        datetime.now(ZoneInfo("UTC")),
+        datetime.now(ZoneInfo("UTC")) - timedelta(days=1),
+        datetime.now(ZoneInfo("UTC")) + timedelta(days=1),
+        datetime.now(ZoneInfo("UTC")) - timedelta(days=7),
+        datetime.now(ZoneInfo("UTC")) + timedelta(days=7),
+    ]
+
+    # When: Finding dates in the text
+    dates = list(find_dates(text, first="month", tz="UTC"))
+
+    # Then: Each found date matches expected datetime
+    assert len(dates) == len(expected)
+    for i, date in enumerate(dates):
+        assert date.date.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
+
+
+@pytest.mark.parametrize(
+    ("text", "first", "expected"),
+    [
+        ("2024-01-12", "day", [datetime(2024, 12, 1, tzinfo=ZoneInfo("UTC"))]),
+        ("1-12-2024", "day", [datetime(2024, 12, 1, tzinfo=ZoneInfo("UTC"))]),
+        ("01-12-24", "day", [datetime(2024, 12, 1, tzinfo=ZoneInfo("UTC"))]),
+        ("1-12-24", "day", [datetime(2024, 12, 1, tzinfo=ZoneInfo("UTC"))]),
+        ("1-2-24", "day", [datetime(2024, 2, 1, tzinfo=ZoneInfo("UTC"))]),
+        ("2024-01-12", "month", [datetime(2024, 1, 12, tzinfo=ZoneInfo("UTC"))]),
+        ("1-12-2024", "month", [datetime(2024, 1, 12, tzinfo=ZoneInfo("UTC"))]),
+        ("01-12-24", "month", [datetime(2024, 1, 12, tzinfo=ZoneInfo("UTC"))]),
+        ("1-12-24", "month", [datetime(2024, 1, 12, tzinfo=ZoneInfo("UTC"))]),
+        ("1-2-24", "month", [datetime(2024, 1, 2, tzinfo=ZoneInfo("UTC"))]),
+        ("2024-01-12", "year", [datetime(2024, 1, 12, tzinfo=ZoneInfo("UTC"))]),
+        ("1-12-2024", "year", []),
+        ("01-12-24", "year", [datetime(2001, 12, 24, tzinfo=ZoneInfo("UTC"))]),
+        ("2001-12-24", "year", [datetime(2001, 12, 24, tzinfo=ZoneInfo("UTC"))]),
+        ("01-2-1", "year", [datetime(2001, 2, 1, tzinfo=ZoneInfo("UTC"))]),
+        ("2001-02-1", "year", [datetime(2001, 2, 1, tzinfo=ZoneInfo("UTC"))]),
+        ("2001-2-01", "year", [datetime(2001, 2, 1, tzinfo=ZoneInfo("UTC"))]),
+    ],
+)
+def test_first_number(text: str, first: str, expected: list[datetime], debug) -> None:
+    """Verify extracting dates from text returns expected datetime objects."""
+    # Given: Text containing dates and expected datetime
+    # When: Finding dates in the text
+    dates = list(find_dates(text, first=first, tz="UTC"))
+
+    # Then: Each found date matches expected datetime
+    assert len(dates) == len(expected)
+    for i, date in enumerate(dates):
+        assert date.date.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
 
 
 def test_date_object(debug):
