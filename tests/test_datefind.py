@@ -25,12 +25,13 @@ def test_raise_error_on_invalid_timezone():
     ("text", "first", "expected"),
     [
         pytest.param(
-            "march twenty second 2025 and sep. thirteenth 1999 and also DEC second 2024",
+            "march twenty second 2025 and sep. thirteenth 1999 and also DEC second 2024. July the fourth 2023",
             "month",
             [
                 datetime(2025, 3, 22, tzinfo=ZoneInfo("UTC")),
                 datetime(1999, 9, 13, tzinfo=ZoneInfo("UTC")),
                 datetime(2024, 12, 2, tzinfo=ZoneInfo("UTC")),
+                datetime(2023, 7, 4, tzinfo=ZoneInfo("UTC")),
             ],
             id="MONTH-NUMBER-YYYY",
         ),
@@ -89,11 +90,12 @@ def test_raise_error_on_invalid_timezone():
             id="MONTH-DD-YYYY",
         ),
         pytest.param(
-            "foo 10-January-2024 bar and 1-april-2024",
+            "foo 10-January-2024 bar and 1-april-2024. twenty fifth of august 1999",
             "month",
             [
                 datetime(2024, 1, 10, tzinfo=ZoneInfo("UTC")),
                 datetime(2024, 4, 1, tzinfo=ZoneInfo("UTC")),
+                datetime(1999, 8, 25, tzinfo=ZoneInfo("UTC")),
             ],
             id="DD-MONTH-YYYY",
         ),
