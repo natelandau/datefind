@@ -36,6 +36,7 @@ MM_FLEXIBLE = rf"(?P<month>{MM_FLEXIBLE})"
 MONTH_AS_TEXT = f"(?P<month_as_text>{MONTH})"
 NEXT_WEEK = rf"(?P<next_week>{NEXT_WEEK})"
 SEPARATOR = rf"[{SEP_CHARS}]*?"
+MONTH_DAY_SEPARATOR = rf"{SEPARATOR}(?:the|of)?{SEPARATOR}"
 START = rf"(?<![0-9]|[0-9][{SEP_CHARS}])"
 TODAY = rf"(?P<today>{TODAY})"
 TOMORROW = rf"(?P<tomorrow>{TOMORROW})"
@@ -58,7 +59,7 @@ YYYY_MONTH_DD = rf"""
 DD_MONTH_YYYY = rf"""
     {START}
     ({DD_FLEXIBLE}|{DD_AS_TEXT})
-    {SEPARATOR}
+    {MONTH_DAY_SEPARATOR}
     {MONTH_AS_TEXT}
     {SEPARATOR}
     {YYYY}
@@ -67,7 +68,7 @@ DD_MONTH_YYYY = rf"""
 MONTH_DD_YYYY = rf"""
     {START}
     {MONTH_AS_TEXT}
-    {SEPARATOR}
+    {MONTH_DAY_SEPARATOR}
     ({DD_FLEXIBLE}|{DD_AS_TEXT})
     {SEPARATOR}
     {YYYY}

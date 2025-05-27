@@ -1,3 +1,5 @@
+[![Tests](https://github.com/natelandau/datefind/actions/workflows/test.yml/badge.svg)](https://github.com/natelandau/datefind/actions/workflows/test.yml) [![codecov](https://codecov.io/gh/natelandau/datefind/graph/badge.svg?token=CXstf6zblD)](https://codecov.io/gh/natelandau/datefind)
+
 # datefind
 
 A python module for locating dates within text. Use this package to search for dates and convert them to datetime objects.
@@ -26,7 +28,6 @@ from datefind import find_dates
 
 string = "2024-01-01 and 2024-01-02"
 
-
 for date in find_dates(string, tz="America/New_York"):
     print(date)
 
@@ -34,13 +35,13 @@ for date in find_dates(string, tz="America/New_York"):
     date=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
     text='2024-01-01 and 2024-01-02',
     match='2024-01-01',
-    span=(0, 9)
+    span=(0, 10)
     )
 >>> Date(
     date=datetime.datetime(2024, 1, 2, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
     text='2024-01-01 and 2024-01-02',
     match='2024-01-02',
-    span=(15, 24)
+    span=(15, 25)
     )
 ```
 
