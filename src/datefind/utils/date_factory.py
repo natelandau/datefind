@@ -61,7 +61,7 @@ DD_MONTH_YYYY = rf"""
     ({DD_FLEXIBLE}|{DD_AS_TEXT})
     {MONTH_DAY_SEPARATOR}
     {MONTH_AS_TEXT}
-    {SEPARATOR}
+    {MONTH_DAY_SEPARATOR}
     {YYYY}
     {END}
 """
@@ -70,7 +70,7 @@ MONTH_DD_YYYY = rf"""
     {MONTH_AS_TEXT}
     {MONTH_DAY_SEPARATOR}
     ({DD_FLEXIBLE}|{DD_AS_TEXT})
-    {SEPARATOR}
+    {MONTH_DAY_SEPARATOR}
     {YYYY}
     {END}
 """
@@ -84,20 +84,34 @@ YYYY_MONTH = rf"""
 MONTH_DD = rf"""
     {START}
     {MONTH_AS_TEXT}
-    {SEPARATOR}
+    {MONTH_DAY_SEPARATOR}
     ({DD_FLEXIBLE}|{DD_AS_TEXT})
     {END}
 """
 MONTH_YYYY = rf"""
     {START}
     {MONTH_AS_TEXT}
-    {SEPARATOR}
+    {MONTH_DAY_SEPARATOR}
     {YYYY}
     {END}
 """
 NATURAL_DATE = rf"""
     {START}
     {TODAY}|{YESTERDAY}|{TOMORROW}|{LAST_WEEK}|{NEXT_WEEK}
+    {END}
+"""
+YYYY_MM = rf"""
+    {START}
+    {YYYY}
+    {SEPARATOR}
+    {MM}
+    {END}
+"""
+MM_YYYY = rf"""
+    {START}
+    {MM}
+    {MONTH_DAY_SEPARATOR}
+    {YYYY}
     {END}
 """
 
@@ -141,23 +155,27 @@ class DatePatternFactory:
         Returns:
             re.Pattern: A compiled regex pattern with flags for case-insensitive and verbose matching
         """
-        common_patterns = rf"{DD_MONTH_YYYY}|{MONTH_DD_YYYY}|{YYYY_MONTH_DD}|{MONTH_DD}|{YYYY_MONTH}|{MONTH_YYYY}|{NATURAL_DATE}"
-
         # Set patterns that rely on the first_number flag.
         match self.first_number:
             case FirstNumber.MONTH:
-                yyyy_xx_xx = self._make_pattern([YYYY, MM_FLEXIBLE, DD_FLEXIBLE])
-                xx_xx_xx = self._make_pattern([MM_FLEXIBLE, DD_FLEXIBLE, YYYY_FLEXIBLE])
+                yyyy_xx_xx = self._make_pattern([YYYY, MM, DD])
+                yyyy_xxf_xxf = self._make_pattern([YYYY, MM_FLEXIBLE, DD_FLEXIBLE])
+                xx_xx_xx = self._make_pattern([MM, DD, YYYY])
+                xxf_xxf_xxf = self._make_pattern([MM_FLEXIBLE, DD_FLEXIBLE, YYYY_FLEXIBLE])
             case FirstNumber.DAY:
-                yyyy_xx_xx = self._make_pattern([YYYY, DD_FLEXIBLE, MM_FLEXIBLE])
-                xx_xx_xx = self._make_pattern([DD_FLEXIBLE, MM_FLEXIBLE, YYYY_FLEXIBLE])
+                yyyy_xx_xx = self._make_pattern([YYYY, DD, MM])
+                xx_xx_xx = self._make_pattern([DD, MM, YYYY])
+                yyyy_xxf_xxf = self._make_pattern([YYYY, DD_FLEXIBLE, MM_FLEXIBLE])
+                xxf_xxf_xxf = self._make_pattern([DD_FLEXIBLE, MM_FLEXIBLE, YYYY_FLEXIBLE])
             case FirstNumber.YEAR:
-                yyyy_xx_xx = self._make_pattern([YYYY, MM_FLEXIBLE, DD_FLEXIBLE])
-                xx_xx_xx = self._make_pattern([YYYY_FLEXIBLE, MM_FLEXIBLE, DD_FLEXIBLE])
+                yyyy_xx_xx = self._make_pattern([YYYY, MM, DD])
+                xx_xx_xx = self._make_pattern([YYYY, MM, DD])
+                yyyy_xxf_xxf = self._make_pattern([YYYY, MM_FLEXIBLE, DD_FLEXIBLE])
+                xxf_xxf_xxf = self._make_pattern([YYYY_FLEXIBLE, MM_FLEXIBLE, DD_FLEXIBLE])
             case _:  # pragma: no cover
                 assert_never(self.first_number)
 
         return re.compile(
-            f"{common_patterns}|{yyyy_xx_xx}|{xx_xx_xx}",
+            f"""{DD_MONTH_YYYY}|{MONTH_DD_YYYY}|{YYYY_MONTH_DD}|{MONTH_DD}|{YYYY_MONTH}|{MONTH_YYYY}|{NATURAL_DATE}|{yyyy_xx_xx}|{xx_xx_xx}|{YYYY_MM}|{MM_YYYY}|{yyyy_xxf_xxf}|{xxf_xxf_xxf}""",
             re.IGNORECASE | re.VERBOSE | re.MULTILINE | re.UNICODE | re.DOTALL,
         )

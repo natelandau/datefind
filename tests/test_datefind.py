@@ -159,6 +159,71 @@ def test_find_dates(text: str, first: str, expected: list[datetime], debug) -> N
         assert date.date.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("01-12", []),
+        ("2024-24-12", []),
+        ("2024-01-32", []),
+        ("march thirtysecond 2025", []),
+        ("hello world", []),
+        ("2019-99-01", []),
+        ("30122022", []),  # fails b/c month is first
+        ("01122024", [datetime(2024, 1, 12)]),
+        ("01:12:2024", [datetime(2024, 1, 12)]),
+        ("2024-01-12", [datetime(2024, 1, 12)]),
+        ("2024/01/12", [datetime(2024, 1, 12)]),
+        ("20240112", [datetime(2024, 1, 12)]),
+        ("2024-1-12", [datetime(2024, 1, 12)]),
+        ("2024/1/12", [datetime(2024, 1, 12)]),
+        ("2024112", [datetime(2024, 11, 2)]),
+        ("12112022", [datetime(2022, 12, 11)]),
+        ("2111999", [datetime(1999, 2, 11)]),
+        ("2022-12", [datetime(2022, 12, 1)]),
+        ("12 2022", [datetime(2022, 12, 1)]),
+        ("2022, 12, 24", [datetime(2022, 12, 24)]),
+        ("23 march, 2020", [datetime(2020, 3, 23)]),
+        ("23rd, march-2020", [datetime(2020, 3, 23)]),
+        ("23rd of march 2020", [datetime(2020, 3, 23)]),
+        ("fifteenth march, 2025", [datetime(2025, 3, 15)]),
+        ("twenty fifth of march, 2025", [datetime(2025, 3, 25)]),
+        ("twentyfifth of march, 2025", [datetime(2025, 3, 25)]),
+        ("march 23", [datetime(datetime.now(ZoneInfo("UTC")).year, 3, 23)]),
+        ("march 23 2025", [datetime(2025, 3, 23)]),
+        ("march 21st 2025", [datetime(2025, 3, 21)]),
+        ("march the 23rd 2025", [datetime(2025, 3, 23)]),
+        ("march the 23rd of 2025", [datetime(2025, 3, 23)]),
+        ("march 23rd", [datetime(datetime.now(ZoneInfo("UTC")).year, 3, 23)]),
+        ("march the 22nd", [datetime(datetime.now(ZoneInfo("UTC")).year, 3, 22)]),
+        ("march twenty second", [datetime(datetime.now(ZoneInfo("UTC")).year, 3, 22)]),
+        ("march the twentysecond", [datetime(datetime.now(ZoneInfo("UTC")).year, 3, 22)]),
+        ("march the first of 2025", [datetime(2025, 3, 1)]),
+        ("march 2025", [datetime(2025, 3, 1)]),
+        ("january, of 1998", [datetime(1998, 1, 1)]),
+        ("second january, of 1998", [datetime(1998, 1, 2)]),
+        ("today", [datetime.now(ZoneInfo("UTC"))]),
+        ("yesterday", [datetime.now(ZoneInfo("UTC")) - timedelta(days=1)]),
+        ("tomorrow", [datetime.now(ZoneInfo("UTC")) + timedelta(days=1)]),
+        ("last week", [datetime.now(ZoneInfo("UTC")) - timedelta(days=7)]),
+        ("next week", [datetime.now(ZoneInfo("UTC")) + timedelta(days=7)]),
+    ],
+)
+def test_find_dates_short(text, expected, debug):
+    """Verify extracting dates from short text returns expected datetime objects."""
+    # Given: Text containing dates and expected datetime
+
+    # When: Finding dates in the text
+    dates = list(find_dates(text, first="month", tz="UTC"))
+
+    # Then: Each found date matches expected datetime
+    assert len(dates) == len(expected)
+    for i, date in enumerate(dates):
+        assert date.date.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
+        assert date.text == text
+        assert date.match == text
+        assert date.span == (0, len(text))
+
+
 def test_date_object(debug):
     """Verify Date object has expected properties."""
     text = "Hello, world! 2024-01-12 and jan. eighteenth, 2024"

@@ -167,6 +167,7 @@
             "ARG005",
             "D102",
             "D417",
+            "DTZ001",  #datetime called without a `tzinfo` argument
             "E712",
             "ERA001",
             "F403",
@@ -178,9 +179,8 @@
             "PLR6301",
             "S101",
             "SLF001",
-        ], "duties.py" = [
-            "ANN001",
-        ] }
+
+        ], "duties.py" = ["ANN001"] }
         preview = true
         select = ["ALL"]
         unfixable = [

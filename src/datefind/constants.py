@@ -48,7 +48,7 @@ class DayToNumber(Enum):
 
 
 CENTURY = 20  # Used for years provided with two digits
-SEP_CHARS = r"/\:\-\,\.\s\_\+\@ "  # Define separator chars for reuse
+SEP_CHARS = r"-\/:,._\+@ "  # Define separator chars for reuse
 SEP_CHARS_REGEX = rf"[{SEP_CHARS}]*?"
 DD_FLEXIBLE = r"[12][0-9]|3[01]|0?[1-9]"
 DD = r"0[1-9]|[12][0-9]|3[01]"
