@@ -38,13 +38,11 @@ class Date:
 
     Properties:
         date (datetime): The parsed datetime object
-        text (str): The full text that was searched
         match (str): The specific text that matched the date pattern
         span (tuple[int, int]): The start and end positions of the match in the text
     """
 
     date: datetime
-    text: str
     match: str
     span: tuple[int, int]
 
@@ -108,7 +106,6 @@ class DateFind:
 
             date = Date(
                 date=as_dt,
-                text=self.text,
                 match=match.group(),
                 span=match.span(),
             )

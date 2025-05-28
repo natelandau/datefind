@@ -33,13 +33,11 @@ for date in find_dates(string, tz="America/New_York"):
 
 >>> Date(
     date=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
-    text='2024-01-01 and 2024-01-02',
     match='2024-01-01',
     span=(0, 10)
     )
 >>> Date(
     date=datetime.datetime(2024, 1, 2, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
-    text='2024-01-01 and 2024-01-02',
     match='2024-01-02',
     span=(15, 25)
     )
@@ -58,7 +56,6 @@ The `find_dates()` function is the main entry point for the datefind package. It
 For each date found, a Date object is returned. The Date object has the following properties:
 
 -   `date` - The datetime object.
--   `text` - The full original text.
 -   `match` - The matched portion of the text.
 -   `span` - The span of the matched text in the original text.
 
