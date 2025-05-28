@@ -1,3 +1,9 @@
+## v0.2.1 (2025-05-28)
+
+### Fix
+
+- remove text attribute from Date object (#2)
+
 ## v0.2.0 (2025-05-27)
 
 ### Feat
