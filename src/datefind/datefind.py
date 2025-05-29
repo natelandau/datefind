@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import regex as re
 from rich.console import Console
 
-from datefind.utils import DatePatternFactory
+from datefind.pattern_factory import PatternFactory
 
 from .constants import (
     APRIL,
@@ -33,7 +33,7 @@ console = Console()
 
 
 @dataclass
-class Date:
+class FoundDate:
     """Store information about a date found in text.
 
     Properties:
@@ -42,7 +42,7 @@ class Date:
         span (tuple[int, int]): The start and end positions of the match in the text
     """
 
-    date: datetime
+    datetime: datetime
     match: str
     span: tuple[int, int]
 
@@ -50,7 +50,7 @@ class Date:
 class DateFind:
     """Find and parse dates within text using pattern matching.
 
-    Searches text for date patterns and returns Date objects containing the parsed datetime, original text, matched pattern, and location of the match.
+    Searches text for date patterns and returns FoundDate objects containing the parsed datetime, original text, matched pattern, and location of the match.
 
     Args:
         text (str): The text to search for dates
@@ -68,15 +68,15 @@ class DateFind:
         self.tz = tz
         self.first_number = first_number
         self.base_date = datetime(datetime.now(self.tz).year, 1, 1, tzinfo=self.tz)
-        self.factory = DatePatternFactory(first_number=self.first_number)
+        self.factory = PatternFactory(first_number=self.first_number)
 
-    def find_dates(self) -> Generator[Date, None, None]:
-        """Search the text for date patterns and parse them into Date objects.
+    def find_dates(self) -> Generator[FoundDate, None, None]:
+        """Search the text for date patterns and parse them into FoundDate objects.
 
         Parse dates in various formats including relative dates like 'today', 'yesterday', 'next week' as well as explicit dates with day, month and year components. All dates are converted to datetime objects in the timezone specified during initialization.
 
         Yields:
-            Generator[Date, None, None]: A sequence of Date objects containing the parsed datetime, original text, matched pattern, and location of the match.
+            Generator[FoundDate, None, None]: A sequence of FoundDate objects containing the parsed datetime, original text, matched pattern, and location of the match.
         """
         regex = self.factory.make_regex()
         matches = regex.finditer(self.text)
@@ -95,8 +95,8 @@ class DateFind:
                 as_dt = datetime(year=int(year), month=month, day=day, tzinfo=self.tz)
 
             if as_dt:
-                date = Date(
-                    date=as_dt,
+                date = FoundDate(
+                    datetime=as_dt,
                     match=match.group(),
                     span=match.span(),
                 )

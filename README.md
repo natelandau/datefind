@@ -6,9 +6,9 @@ A python module for locating dates within text. Use this package to search for d
 
 Finds dates in many different formats.
 
--   All numeric - `2024-01-01`, `01/01/2024`, `01012024`
--   Natural language - `January 1st, 2024`, `March nineteenth, 2024`, `twenty fifth of January`
--   Fuzzy dates - `today`, `yesterday`, `tomorrow`, `last week`, `next week`
+-   All numeric - `2024-01-01`, `01/01/2024`, `01012024`, etc.
+-   Natural language - `January 1st, 2024`, `March nineteenth, 2024`, `twenty fifth of January`, etc.
+-   Fuzzy dates - `today`, `yesterday`, `tomorrow`, `last week`, `next week`, etc.
 
 > [!NOTE]\
 > datefind is designed to be used with year, month, and day only. It does not support hours, minutes, seconds, or microseconds.
@@ -31,13 +31,13 @@ string = "2024-01-01 and 2024-01-02"
 for date in find_dates(string, tz="America/New_York"):
     print(date)
 
->>> Date(
-    date=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
+>>> FoundDate(
+    datetime=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
     match='2024-01-01',
     span=(0, 10)
     )
->>> Date(
-    date=datetime.datetime(2024, 1, 2, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
+>>> FoundDate(
+    datetime=datetime.datetime(2024, 1, 2, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
     match='2024-01-02',
     span=(15, 25)
     )
@@ -53,9 +53,9 @@ The `find_dates()` function is the main entry point for the datefind package. It
 -   `first` - The first number to find in ambiguous dates. (one of `month`, `day`, `year`) Default is `month`
 -   `tz` - The timezone to use. Defaults to the local timezone.
 
-For each date found, a Date object is returned. The Date object has the following properties:
+For each date found, a `FoundDate` object is returned. The Date object has the following properties:
 
--   `date` - The datetime object.
+-   `datetime` - The datetime object.
 -   `match` - The matched portion of the text.
 -   `span` - The span of the matched text in the original text.
 
