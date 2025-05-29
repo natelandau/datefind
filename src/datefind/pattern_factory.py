@@ -124,7 +124,7 @@ MM_YYYY = rf"""
 """
 
 
-class DatePatternFactory:
+class PatternFactory:
     """Factory for creating date patterns."""
 
     def __init__(self, first_number: FirstNumber) -> None:

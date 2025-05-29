@@ -7,12 +7,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from tzlocal import get_localzone
 
 from datefind.constants import FirstNumber
-from datefind.datefind import Date, DateFind
+from datefind.datefind import DateFind, FoundDate
 
 
 def find_dates(
     text: str, first: Literal["month", "day", "year"] = "month", tz: str = ""
-) -> Generator[Date, None, None]:
+) -> Generator[FoundDate, None, None]:
     """Search text for dates and return them as Date objects.
 
     Parse the input text to locate and extract dates in various formats. When ambiguous dates are encountered (e.g. 01/02/03), use the `first` parameter to determine the order of month/day/year. Convert all dates to the specified timezone.
@@ -23,7 +23,7 @@ def find_dates(
         tz (str): The timezone name (e.g. "America/New_York") to localize dates. Uses system timezone if empty. Defaults to ""
 
     Returns:
-        Generator[Date, None, None]: A generator yielding Date objects for each date found in the text
+        Generator[FoundDate, None, None]: A generator yielding Date objects for each date found in the text
 
     Raises:
         ValueError: If an invalid first parameter or timezone is provided

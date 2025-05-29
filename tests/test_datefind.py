@@ -100,7 +100,7 @@ def test_find_dates(text, expected, debug):
     # Then: Each found date matches expected datetime
     assert len(dates) == len(expected)
     for i, date in enumerate(dates):
-        assert date.date.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
+        assert date.datetime.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
         assert date.match == text
         assert date.span == (0, len(text))
 
@@ -145,7 +145,7 @@ def test_find_dates_in_file(debug):
     # Then: Each found date matches expected datetime
     assert len(dates) == len(expected)
     for i, date in enumerate(dates):
-        assert date.date.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
+        assert date.datetime.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
 
 
 @pytest.mark.parametrize(
@@ -179,19 +179,19 @@ def test_first_number(text: str, first: str, expected: list[datetime], debug) ->
     # Then: Each found date matches expected datetime
     assert len(dates) == len(expected)
     for i, date in enumerate(dates):
-        assert date.date.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
+        assert date.datetime.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
 
 
 def test_date_object(debug):
-    """Verify Date object has expected properties."""
+    """Verify FoundDate object has expected properties."""
     text = "Hello, world! 2024-01-12 and jan. eighteenth, 2024"
     dates = list(find_dates(text, first="month", tz="UTC"))
     assert len(dates) == 2
-    assert dates[0].date == datetime(2024, 1, 12, tzinfo=ZoneInfo("UTC"))
+    assert dates[0].datetime == datetime(2024, 1, 12, tzinfo=ZoneInfo("UTC"))
     assert dates[0].match == "2024-01-12"
     assert dates[0].span == (14, 24)
 
-    assert dates[1].date == datetime(2024, 1, 18, tzinfo=ZoneInfo("UTC"))
+    assert dates[1].datetime == datetime(2024, 1, 18, tzinfo=ZoneInfo("UTC"))
     assert dates[1].match == "jan. eighteenth, 2024"
     assert dates[1].span == (29, 50)
 
@@ -209,6 +209,4 @@ def test_last_month(debug):
     """Verify last month is handled correctly."""
     text = "last month"
     dates = list(find_dates(text, first="month", tz="UTC"))
-    for date in dates:
-        debug(date)
     assert len(dates) == 0
