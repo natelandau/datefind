@@ -5,6 +5,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
+from freezegun import freeze_time
 
 from datefind import find_dates
 
@@ -43,8 +44,8 @@ def test_raise_error_on_invalid_timezone():
         ("2111999", [datetime(1999, 2, 11)]),
         ("2022-12", [datetime(2022, 12, 1)]),
         ("12 2022", [datetime(2022, 12, 1)]),
-        ("sep. 4", [datetime(datetime.now(ZoneInfo("UTC")).year, 9, 4)]),
-        ("sept. fifth", [datetime(datetime.now(ZoneInfo("UTC")).year, 9, 5)]),
+        ("sep. 4", [datetime(2024, 9, 4)]),
+        ("sept. fifth", [datetime(2024, 9, 5)]),
         ("2022, 12, 24", [datetime(2022, 12, 24)]),
         ("23 march, 2020", [datetime(2020, 3, 23)]),
         ("23rd, march-2020", [datetime(2020, 3, 23)]),
@@ -52,26 +53,43 @@ def test_raise_error_on_invalid_timezone():
         ("fifteenth march, 2025", [datetime(2025, 3, 15)]),
         ("twenty fifth of march, 2025", [datetime(2025, 3, 25)]),
         ("twentyfifth of march, 2025", [datetime(2025, 3, 25)]),
-        ("march 23", [datetime(datetime.now(ZoneInfo("UTC")).year, 3, 23)]),
+        ("march 23", [datetime(2024, 3, 23)]),
         ("march 23 2025", [datetime(2025, 3, 23)]),
         ("march 21st 2025", [datetime(2025, 3, 21)]),
         ("march the 23rd 2025", [datetime(2025, 3, 23)]),
         ("march the 23rd of 2025", [datetime(2025, 3, 23)]),
-        ("march 23rd", [datetime(datetime.now(ZoneInfo("UTC")).year, 3, 23)]),
-        ("march the 22nd", [datetime(datetime.now(ZoneInfo("UTC")).year, 3, 22)]),
-        ("march twenty second", [datetime(datetime.now(ZoneInfo("UTC")).year, 3, 22)]),
-        ("march the twentysecond", [datetime(datetime.now(ZoneInfo("UTC")).year, 3, 22)]),
+        ("march 23rd", [datetime(2024, 3, 23)]),
+        ("march the 22nd", [datetime(2024, 3, 22)]),
+        ("march twenty second", [datetime(2024, 3, 22)]),
+        ("march the twentysecond", [datetime(2024, 3, 22)]),
         ("march the first of 2025", [datetime(2025, 3, 1)]),
         ("march 2025", [datetime(2025, 3, 1)]),
         ("january, of 1998", [datetime(1998, 1, 1)]),
         ("second january, of 1998", [datetime(1998, 1, 2)]),
-        ("today", [datetime.now(ZoneInfo("UTC"))]),
-        ("yesterday", [datetime.now(ZoneInfo("UTC")) - timedelta(days=1)]),
-        ("tomorrow", [datetime.now(ZoneInfo("UTC")) + timedelta(days=1)]),
-        ("last week", [datetime.now(ZoneInfo("UTC")) - timedelta(days=7)]),
-        ("next week", [datetime.now(ZoneInfo("UTC")) + timedelta(days=7)]),
+        ("today", [datetime(2024, 3, 1)]),
+        ("yesterday", [datetime(2024, 3, 1) - timedelta(days=1)]),
+        ("tomorrow", [datetime(2024, 3, 1) + timedelta(days=1)]),
+        ("last week", [datetime(2024, 3, 1) - timedelta(days=7)]),
+        ("next week", [datetime(2024, 3, 1) + timedelta(days=7)]),
+        (
+            "last month",
+            [datetime(2024, 3, 1).replace(month=2)],
+        ),
+        (
+            "next month",
+            [datetime(2024, 3, 1).replace(month=4)],
+        ),
+        (
+            "last year",
+            [datetime(2024, 3, 1).replace(year=2023)],
+        ),
+        (
+            "next year",
+            [datetime(2024, 3, 1).replace(year=2025)],
+        ),
     ],
 )
+@freeze_time("2024-03-01")
 def test_find_dates(text, expected, debug):
     """Verify extracting dates from short text returns expected datetime objects."""
     # Given: Text containing dates and expected datetime
@@ -87,6 +105,7 @@ def test_find_dates(text, expected, debug):
         assert date.span == (0, len(text))
 
 
+@freeze_time("2024-03-01")
 def test_find_dates_in_file(debug):
     """Verify extracting dates from a large text input returns expected datetime objects."""
     file = Path(__file__).parent / "fixture.txt"
@@ -117,6 +136,7 @@ def test_find_dates_in_file(debug):
         datetime.now(ZoneInfo("UTC")) + timedelta(days=1),
         datetime.now(ZoneInfo("UTC")) - timedelta(days=7),
         datetime.now(ZoneInfo("UTC")) + timedelta(days=7),
+        datetime.now(ZoneInfo("UTC")).replace(year=datetime.now(ZoneInfo("UTC")).year - 1),
     ]
 
     # When: Finding dates in the text
@@ -174,3 +194,21 @@ def test_date_object(debug):
     assert dates[1].date == datetime(2024, 1, 18, tzinfo=ZoneInfo("UTC"))
     assert dates[1].match == "jan. eighteenth, 2024"
     assert dates[1].span == (29, 50)
+
+
+@freeze_time("2024-02-29")
+def test_leap_year(debug):
+    """Verify leap year is handled correctly."""
+    text = "last year"
+    dates = list(find_dates(text, first="month", tz="UTC"))
+    assert len(dates) == 0
+
+
+@freeze_time("2024-03-31")
+def test_last_month(debug):
+    """Verify last month is handled correctly."""
+    text = "last month"
+    dates = list(find_dates(text, first="month", tz="UTC"))
+    for date in dates:
+        debug(date)
+    assert len(dates) == 0
