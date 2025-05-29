@@ -12,11 +12,15 @@ from datefind.constants import (
     DD,
     DD_FLEXIBLE,
     DIGIT_SUFFIXES,
+    LAST_MONTH,
     LAST_WEEK,
+    LAST_YEAR,
     MM,
     MM_FLEXIBLE,
     MONTH,
+    NEXT_MONTH,
     NEXT_WEEK,
+    NEXT_YEAR,
     SEP_CHARS,
     TODAY,
     TOMORROW,
@@ -30,6 +34,10 @@ DD = f"(?P<day>{DD})(?:{DIGIT_SUFFIXES})?"
 DD_AS_TEXT = f"(?P<day_as_text>{DAY_NUMBERS})"
 DD_FLEXIBLE = f"(?P<day>{DD_FLEXIBLE})(?:{DIGIT_SUFFIXES})?"
 END = rf"(?![0-9]|[{SEP_CHARS}][0-9])"
+LAST_MONTH = rf"(?P<last_month>{LAST_MONTH})"
+NEXT_MONTH = rf"(?P<next_month>{NEXT_MONTH})"
+LAST_YEAR = rf"(?P<last_year>{LAST_YEAR})"
+NEXT_YEAR = rf"(?P<next_year>{NEXT_YEAR})"
 LAST_WEEK = rf"(?P<last_week>{LAST_WEEK})"
 MM = rf"(?P<month>{MM})"
 MM_FLEXIBLE = rf"(?P<month>{MM_FLEXIBLE})"
@@ -97,7 +105,7 @@ MONTH_YYYY = rf"""
 """
 NATURAL_DATE = rf"""
     {START}
-    {TODAY}|{YESTERDAY}|{TOMORROW}|{LAST_WEEK}|{NEXT_WEEK}
+    {TODAY}|{YESTERDAY}|{TOMORROW}|{LAST_WEEK}|{NEXT_WEEK}|{LAST_MONTH}|{NEXT_MONTH}|{LAST_YEAR}|{NEXT_YEAR}
     {END}
 """
 YYYY_MM = rf"""

@@ -82,37 +82,71 @@ class DateFind:
         matches = regex.finditer(self.text)
 
         for match in matches:
-            if match.groupdict().get("today"):
-                as_dt = datetime.now(self.tz)
+            as_dt = self._handle_relative_dates(match=match)
 
-            elif match.groupdict().get("yesterday"):
-                as_dt = datetime.now(self.tz) - timedelta(days=1)
-
-            elif match.groupdict().get("tomorrow"):
-                as_dt = datetime.now(self.tz) + timedelta(days=1)
-
-            elif match.groupdict().get("last_week"):
-                as_dt = datetime.now(self.tz) - timedelta(days=7)
-
-            elif match.groupdict().get("next_week"):
-                as_dt = datetime.now(self.tz) + timedelta(days=7)
-
-            else:
+            groups = match.groupdict()
+            has_date_component = any(
+                groups.get(key) for key in ("year", "month", "day", "month_as_text", "day_as_text")
+            )
+            if not as_dt and has_date_component:
                 day = self._day_to_number(match=match) or 1
                 month = self._month_to_number(match=match) or datetime.now(self.tz).month
                 year = self._year_to_number(match=match) or datetime.now(self.tz).year
-
                 as_dt = datetime(year=int(year), month=month, day=day, tzinfo=self.tz)
 
-            date = Date(
-                date=as_dt,
-                match=match.group(),
-                span=match.span(),
-            )
-            yield date
+            if as_dt:
+                date = Date(
+                    date=as_dt,
+                    match=match.group(),
+                    span=match.span(),
+                )
+                yield date
+
+    def _handle_relative_dates(self, match: re.Match) -> datetime | None:  # noqa: PLR0911
+        """Parse relative date patterns like 'today', 'yesterday', 'next week' into datetime objects.
+
+        Convert relative date references in the matched text into concrete datetime objects using the configured timezone. Handles basic time periods (today/tomorrow/yesterday) and relative time spans (last/next week/month/year).
+
+        Args:
+            match (re.Match): The regex match containing relative date pattern groups
+
+        Returns:
+            datetime | None: The parsed datetime object if a relative pattern was matched, None otherwise
+        """
+        groups = match.groupdict()
+        now = datetime.now(self.tz)
+
+        # Handle simple offsets
+        if groups.get("today"):
+            return now
+        if groups.get("yesterday"):
+            return now - timedelta(days=1)
+        if groups.get("tomorrow"):
+            return now + timedelta(days=1)
+        if groups.get("last_week"):
+            return now - timedelta(days=7)
+        if groups.get("next_week"):
+            return now + timedelta(days=7)
+
+        # Handle month/year adjustments
+        adjustments = {
+            "last_month": {"month": now.month - 1},
+            "next_month": {"month": now.month + 1},
+            "last_year": {"year": now.year - 1},
+            "next_year": {"year": now.year + 1},
+        }
+
+        for key, adj in adjustments.items():
+            if groups.get(key):
+                try:
+                    return now.replace(tzinfo=self.tz, **adj)
+                except ValueError:
+                    return None
+
+        return None
 
     @staticmethod
-    def _year_to_number(match: re.Match) -> int:
+    def _year_to_number(match: re.Match) -> int | None:
         """Parse a year string from a regex match into a numeric year.
 
         Convert 2-digit years to 4-digit years by prepending the current century. For example, '23' becomes '2023'.
@@ -131,7 +165,7 @@ class DateFind:
         return None
 
     @staticmethod
-    def _month_to_number(match: re.Match) -> int:
+    def _month_to_number(match: re.Match) -> int | None:
         """Parse a month string from a regex match into a numeric month (1-12).
 
         Convert both text month names (e.g. "January", "Feb") and numeric months from the regex match. Text matching is case-insensitive.

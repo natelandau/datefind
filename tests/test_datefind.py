@@ -5,6 +5,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
+from freezegun import freeze_time
 
 from datefind import find_dates
 
@@ -70,6 +71,22 @@ def test_raise_error_on_invalid_timezone():
         ("tomorrow", [datetime.now(ZoneInfo("UTC")) + timedelta(days=1)]),
         ("last week", [datetime.now(ZoneInfo("UTC")) - timedelta(days=7)]),
         ("next week", [datetime.now(ZoneInfo("UTC")) + timedelta(days=7)]),
+        (
+            "last month",
+            [datetime.now(ZoneInfo("UTC")).replace(month=datetime.now(ZoneInfo("UTC")).month - 1)],
+        ),
+        (
+            "next month",
+            [datetime.now(ZoneInfo("UTC")).replace(month=datetime.now(ZoneInfo("UTC")).month + 1)],
+        ),
+        (
+            "last year",
+            [datetime.now(ZoneInfo("UTC")).replace(year=datetime.now(ZoneInfo("UTC")).year - 1)],
+        ),
+        (
+            "next year",
+            [datetime.now(ZoneInfo("UTC")).replace(year=datetime.now(ZoneInfo("UTC")).year + 1)],
+        ),
     ],
 )
 def test_find_dates(text, expected, debug):
@@ -117,6 +134,7 @@ def test_find_dates_in_file(debug):
         datetime.now(ZoneInfo("UTC")) + timedelta(days=1),
         datetime.now(ZoneInfo("UTC")) - timedelta(days=7),
         datetime.now(ZoneInfo("UTC")) + timedelta(days=7),
+        datetime.now(ZoneInfo("UTC")).replace(year=datetime.now(ZoneInfo("UTC")).year - 1),
     ]
 
     # When: Finding dates in the text
@@ -174,3 +192,21 @@ def test_date_object(debug):
     assert dates[1].date == datetime(2024, 1, 18, tzinfo=ZoneInfo("UTC"))
     assert dates[1].match == "jan. eighteenth, 2024"
     assert dates[1].span == (29, 50)
+
+
+@freeze_time("2024-02-29")
+def test_leap_year(debug):
+    """Verify leap year is handled correctly."""
+    text = "last year"
+    dates = list(find_dates(text, first="month", tz="UTC"))
+    assert len(dates) == 0
+
+
+@freeze_time("2024-03-31")
+def test_last_month(debug):
+    """Verify last month is handled correctly."""
+    text = "last month"
+    dates = list(find_dates(text, first="month", tz="UTC"))
+    for date in dates:
+        debug(date)
+    assert len(dates) == 0

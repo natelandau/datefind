@@ -76,6 +76,10 @@ YESTERDAY = r"yesterday'?s?"
 TOMORROW = r"tomorrow'?s?"
 LAST_WEEK = rf"last{SEP_CHARS_REGEX}week'?s?"
 NEXT_WEEK = rf"next{SEP_CHARS_REGEX}week'?s?"
+LAST_MONTH = rf"last{SEP_CHARS_REGEX}month'?s?"
+NEXT_MONTH = rf"next{SEP_CHARS_REGEX}month'?s?"
+LAST_YEAR = rf"last{SEP_CHARS_REGEX}year'?s?"
+NEXT_YEAR = rf"next{SEP_CHARS_REGEX}year'?s?"
 WEEKDAYS = (
     r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu|thurs?|fri|sat|sun"
 )
