@@ -4,6 +4,9 @@ tmp/
 development/
 .development/
 dev-config.toml
+.dev
+GEMINI.md
+.cursor/
 
 # Caches
 *_cache/
