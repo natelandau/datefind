@@ -11,7 +11,7 @@ Finds dates in many different formats.
 -   Fuzzy dates - `today`, `yesterday`, `tomorrow`, `last week`, `next week`, etc.
 
 > [!NOTE]\
-> datefind is designed to be used with year, month, and day only. It does not support hours, minutes, seconds, or microseconds.
+> `datefind` is designed to be used with year, month, and day only. It does not support hours, minutes, seconds, or microseconds.
 
 ## Installation
 
@@ -32,14 +32,14 @@ for date in find_dates(string, tz="America/New_York"):
     print(date)
 
 >>> FoundDate(
-    datetime=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
-    match='2024-01-01',
-    span=(0, 10)
+        datetime=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
+        match='2024-01-01',
+        span=(0, 10)
     )
 >>> FoundDate(
-    datetime=datetime.datetime(2024, 1, 2, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
-    match='2024-01-02',
-    span=(15, 25)
+        datetime=datetime.datetime(2024, 1, 2, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
+        match='2024-01-02',
+        span=(15, 25)
     )
 ```
 
@@ -53,7 +53,7 @@ The `find_dates()` function is the main entry point for the datefind package. It
 -   `first` - The first number to find in ambiguous dates. (one of `month`, `day`, `year`) Default is `month`
 -   `tz` - The timezone to use. Defaults to the local timezone.
 
-For each date found, a `FoundDate` object is returned. The Date object has the following properties:
+For each date found, a `FoundDate` object is returned. The FoundDate object has the following properties:
 
 -   `datetime` - The datetime object.
 -   `match` - The matched portion of the text.
