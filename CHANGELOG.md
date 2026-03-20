@@ -1,3 +1,13 @@
+## v0.3.0 (2026-03-19)
+
+### Feat
+
+- find additional natural language dates (#3)
+
+### Refactor
+
+- use FoundDate as return object (#4)
+
 ## v0.2.1 (2025-05-28)
 
 ### Fix
