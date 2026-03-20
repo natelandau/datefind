@@ -13,3 +13,5 @@ __pycache__/
 .cache/
 
 .DS_Store
+.github/copilot-instructions.md
+.github/instructions/
