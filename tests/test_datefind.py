@@ -94,6 +94,16 @@ def test_raise_error_on_invalid_timezone():
         ("this week", [datetime(2024, 3, 1)]),
         ("this month", [datetime(2024, 3, 1)]),
         ("this year", [datetime(2024, 3, 1)]),
+        ("Q1 2024", [datetime(2024, 1, 1)]),
+        ("Q2 2024", [datetime(2024, 4, 1)]),
+        ("Q3 2024", [datetime(2024, 7, 1)]),
+        ("Q4 2024", [datetime(2024, 10, 1)]),
+        ("q1 2024", [datetime(2024, 1, 1)]),
+        ("Q1-2024", [datetime(2024, 1, 1)]),
+        ("2024 Q1", [datetime(2024, 1, 1)]),
+        ("2024-Q4", [datetime(2024, 10, 1)]),
+        ("Q5 2024", []),
+        ("Q1", []),
     ],
 )
 @freeze_time("2024-03-01")

@@ -87,3 +87,4 @@ WEEKDAYS = (
     r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu|thurs?|fri|sat|sun"
 )
 TIME_PERIOD = r"am|pm"
+QUARTER = r"[Qq][1-4]"

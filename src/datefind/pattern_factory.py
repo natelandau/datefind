@@ -21,6 +21,7 @@ from datefind.constants import (
     NEXT_MONTH,
     NEXT_WEEK,
     NEXT_YEAR,
+    QUARTER,
     SEP_CHARS,
     THIS_MONTH,
     THIS_WEEK,
@@ -51,7 +52,7 @@ MONTH_AS_TEXT = f"(?P<month_as_text>{MONTH})"
 NEXT_WEEK = rf"(?P<next_week>{NEXT_WEEK})"
 SEPARATOR = rf"[{SEP_CHARS}]*?"
 MONTH_DAY_SEPARATOR = rf"{SEPARATOR}(?:the|of)?{SEPARATOR}"
-START = rf"(?<![0-9]|[0-9][{SEP_CHARS}])"
+START = rf"(?<![0-9]|[0-9][{SEP_CHARS}]|[Qq])"
 TODAY = rf"(?P<today>{TODAY})"
 TOMORROW = rf"(?P<tomorrow>{TOMORROW})"
 YESTERDAY = rf"(?P<yesterday>{YESTERDAY})"
@@ -131,6 +132,20 @@ MM_YYYY = rf"""
     {YYYY}
     {END}
 """
+QUARTER_YYYY = rf"""
+    {START}
+    (?P<quarter>{QUARTER})
+    {SEPARATOR}
+    {YYYY}
+    {END}
+"""
+YYYY_QUARTER = rf"""
+    {START}
+    {YYYY}
+    {SEPARATOR}
+    (?P<quarter>{QUARTER})
+    {END}
+"""
 
 
 class PatternFactory:
@@ -193,6 +208,6 @@ class PatternFactory:
                 assert_never(self.first_number)
 
         return re.compile(
-            f"""{DD_MONTH_YYYY}|{MONTH_DD_YYYY}|{YYYY_MONTH_DD}|{MONTH_DD}|{YYYY_MONTH}|{MONTH_YYYY}|{NATURAL_DATE}|{yyyy_xx_xx}|{xx_xx_xx}|{YYYY_MM}|{MM_YYYY}|{yyyy_xxf_xxf}|{xxf_xxf_xxf}""",
+            f"""{DD_MONTH_YYYY}|{MONTH_DD_YYYY}|{YYYY_MONTH_DD}|{MONTH_DD}|{YYYY_MONTH}|{MONTH_YYYY}|{NATURAL_DATE}|{QUARTER_YYYY}|{YYYY_QUARTER}|{yyyy_xx_xx}|{xx_xx_xx}|{YYYY_MM}|{MM_YYYY}|{yyyy_xxf_xxf}|{xxf_xxf_xxf}""",
             re.IGNORECASE | re.VERBOSE | re.MULTILINE | re.UNICODE | re.DOTALL,
         )

@@ -178,6 +178,10 @@ class DateFind:
         Returns:
             int: The numeric month value (1-12)
         """
+        if quarter := match.groupdict().get("quarter"):
+            q = int(quarter[1])
+            return (q - 1) * 3 + 1  # Q1→1, Q2→4, Q3→7, Q4→10
+
         month_patterns = {
             JANUARY: 1,
             FEBRUARY: 2,
