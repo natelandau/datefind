@@ -188,6 +188,19 @@ def test_find_dates_in_file(debug):
         datetime.now(ZoneInfo("UTC")) - timedelta(days=7),
         datetime.now(ZoneInfo("UTC")) + timedelta(days=7),
         datetime.now(ZoneInfo("UTC")).replace(year=datetime.now(ZoneInfo("UTC")).year - 1),
+        # New paragraph: Q1 2024, 2024 Q3, next Monday, March 15 24, 3 days ago, in 2 weeks,
+        # This month, this year's, last Friday
+        datetime(2024, 1, 1, tzinfo=ZoneInfo("UTC")),  # Q1 2024
+        datetime(2024, 7, 1, tzinfo=ZoneInfo("UTC")),  # 2024 Q3
+        datetime.now(ZoneInfo("UTC"))
+        + timedelta(days=(0 - datetime.now(ZoneInfo("UTC")).weekday()) % 7 or 7),  # next Monday
+        datetime(2024, 3, 15, tzinfo=ZoneInfo("UTC")),  # March 15, 24
+        datetime.now(ZoneInfo("UTC")) - timedelta(days=3),  # 3 days ago
+        datetime.now(ZoneInfo("UTC")) + timedelta(days=14),  # in 2 weeks
+        datetime.now(ZoneInfo("UTC")),  # This month
+        datetime.now(ZoneInfo("UTC")),  # this year's
+        datetime.now(ZoneInfo("UTC"))
+        - timedelta(days=(datetime.now(ZoneInfo("UTC")).weekday() - 4) % 7 or 7),  # last Friday
     ]
 
     # When: Finding dates in the text
