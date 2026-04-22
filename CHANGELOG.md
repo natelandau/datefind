@@ -1,3 +1,13 @@
+## v0.5.0 (2026-04-22)
+
+### Feat
+
+- expand supported date pattern categories (#15)
+
+### Refactor
+
+- **datefind**: reduce per-match work (#16)
+
 ## v0.4.0 (2026-03-19)
 
 ### Feat
