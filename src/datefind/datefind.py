@@ -127,6 +127,8 @@ class DateFind:
             return now - timedelta(days=7)
         if groups.get("next_week"):
             return now + timedelta(days=7)
+        if groups.get("this_week") or groups.get("this_month") or groups.get("this_year"):
+            return now
 
         # Handle month/year adjustments
         adjustments = {

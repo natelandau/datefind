@@ -22,6 +22,9 @@ from datefind.constants import (
     NEXT_WEEK,
     NEXT_YEAR,
     SEP_CHARS,
+    THIS_MONTH,
+    THIS_WEEK,
+    THIS_YEAR,
     TODAY,
     TOMORROW,
     YESTERDAY,
@@ -38,6 +41,9 @@ LAST_MONTH = rf"(?P<last_month>{LAST_MONTH})"
 NEXT_MONTH = rf"(?P<next_month>{NEXT_MONTH})"
 LAST_YEAR = rf"(?P<last_year>{LAST_YEAR})"
 NEXT_YEAR = rf"(?P<next_year>{NEXT_YEAR})"
+THIS_WEEK = rf"(?P<this_week>{THIS_WEEK})"
+THIS_MONTH = rf"(?P<this_month>{THIS_MONTH})"
+THIS_YEAR = rf"(?P<this_year>{THIS_YEAR})"
 LAST_WEEK = rf"(?P<last_week>{LAST_WEEK})"
 MM = rf"(?P<month>{MM})"
 MM_FLEXIBLE = rf"(?P<month>{MM_FLEXIBLE})"
@@ -105,7 +111,7 @@ MONTH_YYYY = rf"""
 """
 NATURAL_DATE = rf"""
     {START}
-    {TODAY}|{YESTERDAY}|{TOMORROW}|{LAST_WEEK}|{NEXT_WEEK}|{LAST_MONTH}|{NEXT_MONTH}|{LAST_YEAR}|{NEXT_YEAR}
+    {TODAY}|{YESTERDAY}|{TOMORROW}|{LAST_WEEK}|{NEXT_WEEK}|{THIS_WEEK}|{LAST_MONTH}|{NEXT_MONTH}|{THIS_MONTH}|{LAST_YEAR}|{NEXT_YEAR}|{THIS_YEAR}
     {END}
 """
 YYYY_MM = rf"""
