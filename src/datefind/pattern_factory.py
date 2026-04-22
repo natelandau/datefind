@@ -57,6 +57,9 @@ TOMORROW = rf"(?P<tomorrow>{TOMORROW})"
 YESTERDAY = rf"(?P<yesterday>{YESTERDAY})"
 YYYY = rf"(?P<year>{YYYY})"
 YYYY_FLEXIBLE = rf"(?P<year>{YYYY_FLEXIBLE})"
+# 2-digit year alternative requires no preceding digit to prevent splitting 4-digit years
+# (e.g. "2025" being greedily consumed as day=20, year=25 in month-text patterns)
+YYYY_FLEXIBLE_NO_PREV_DIGIT = r"(?P<year>19\d\d|20\d\d|(?<!\d)\d\d)"
 
 ISO8601 = r"(?P<year>-?(\:[1-9][0-9]*)?[0-9]{4})\-(?P<month>1[0-2]|0[1-9])\-(?P<day>3[01]|0[1-9]|[12][0-9])T(?P<hour>2[0-3]|[01][0-9])\:(?P<minute>[0-5][0-9]):(?P<seconds>[0-5][0-9])(?:[\.,]+(?P<microseconds>[0-9]+))?(?P<offset>(?:Z|[+-](?:2[0-3]|[01][0-9])\:[0-5][0-9]))?"
 
@@ -85,7 +88,7 @@ MONTH_DD_YYYY = rf"""
     {MONTH_DAY_SEPARATOR}
     ({DD_FLEXIBLE}|{DD_AS_TEXT})
     {MONTH_DAY_SEPARATOR}
-    {YYYY}
+    {YYYY_FLEXIBLE_NO_PREV_DIGIT}
     {END}
 """
 YYYY_MONTH = rf"""
