@@ -104,6 +104,8 @@ class DateFind:
         for match in matches:
             as_dt = self._handle_relative_dates(match=match)
             if not as_dt:
+                as_dt = self._handle_relative_count(match=match)
+            if not as_dt:
                 as_dt = self._handle_weekday(match=match)
 
             groups = match.groupdict()
@@ -203,6 +205,46 @@ class DateFind:
             return now + timedelta(days=(target - current) % 7)
         # Bare weekday — same as "next": always future
         return now + timedelta(days=(target - current) % 7 or 7)
+
+    def _handle_relative_count(self, match: re.Match) -> datetime | None:  # noqa: PLR0911
+        """Resolve N-unit-ago / in-N-unit / N-unit-from-now expressions to a datetime.
+
+        Compute a concrete datetime by offsetting the current time by N of the matched unit (days, weeks, months, years). Direction is determined by which named group fired: rel_ago subtracts; rel_in and rel_from_now add. Invalid target dates (e.g., Feb 29 + 1 year in a non-leap year) resolve to None.
+
+        Args:
+            match (re.Match): The regex match containing rel_count, rel_unit, and one of rel_ago / rel_in / rel_from_now
+
+        Returns:
+            datetime | None: The resolved datetime, or None if no relative-count groups matched or the target date is invalid
+        """
+        groups = match.groupdict()
+        count = groups.get("rel_count")
+        unit = groups.get("rel_unit")
+        if not count or not unit:
+            return None
+
+        n = int(count)
+        sign = -1 if groups.get("rel_ago") else 1
+        unit_lower = unit.lower().rstrip("s")
+        now = datetime.now(self.tz)
+
+        if unit_lower == "day":
+            return now + timedelta(days=n * sign)
+        if unit_lower == "week":
+            return now + timedelta(weeks=n * sign)
+
+        try:
+            if unit_lower == "month":
+                # Carry months across year boundaries
+                new_month_index = (now.month - 1) + (n * sign)
+                year_offset, month_zero = divmod(new_month_index, 12)
+                return now.replace(year=now.year + year_offset, month=month_zero + 1)
+            if unit_lower == "year":
+                return now.replace(year=now.year + (n * sign))
+        except ValueError:
+            # Target day-of-month does not exist in resolved month/year
+            return None
+        return None
 
     @staticmethod
     def _year_to_number(match: re.Match) -> int | None:

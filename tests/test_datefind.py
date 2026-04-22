@@ -119,6 +119,22 @@ def test_raise_error_on_invalid_timezone():
         # Bare weekday substring prevention
         ("among friends", []),
         ("sunlight", []),
+        # Relative count patterns
+        ("3 days ago", [datetime(2024, 2, 27)]),
+        ("in 3 days", [datetime(2024, 3, 4)]),
+        ("3 days from now", [datetime(2024, 3, 4)]),
+        ("1 day ago", [datetime(2024, 2, 29)]),
+        ("2 weeks ago", [datetime(2024, 2, 16)]),
+        ("in 2 weeks", [datetime(2024, 3, 15)]),
+        ("2 weeks from now", [datetime(2024, 3, 15)]),
+        ("1 month ago", [datetime(2024, 2, 1)]),
+        ("in 2 months", [datetime(2024, 5, 1)]),
+        ("2 years ago", [datetime(2022, 3, 1)]),
+        ("in 1 year", [datetime(2025, 3, 1)]),
+        ("1 year from now", [datetime(2025, 3, 1)]),
+        ("0 days ago", [datetime(2024, 3, 1)]),
+        ("days ago", []),
+        ("in days", []),
     ],
 )
 @freeze_time("2024-03-01")
@@ -241,6 +257,26 @@ def test_last_month(debug):
     """Verify last month is handled correctly."""
     text = "last month"
     dates = list(find_dates(text, first="month", tz="UTC"))
+    assert len(dates) == 0
+
+
+@freeze_time("2024-03-31")
+def test_relative_count_month_end_edge(debug):
+    """Verify 'in 1 month' from March 31 returns no match (April has no 31st)."""
+    # Given: today is March 31, 2024
+    # When: parsing "in 1 month"
+    dates = list(find_dates("in 1 month", first="month", tz="UTC"))
+    # Then: no date resolved (April 31 is invalid)
+    assert len(dates) == 0
+
+
+@freeze_time("2024-02-29")
+def test_relative_count_leap_day(debug):
+    """Verify '1 year ago' from Feb 29 returns no match (2023 is not a leap year)."""
+    # Given: today is Feb 29, 2024 (leap day)
+    # When: parsing "1 year ago"
+    dates = list(find_dates("1 year ago", first="month", tz="UTC"))
+    # Then: no date resolved (Feb 29, 2023 does not exist)
     assert len(dates) == 0
 
 

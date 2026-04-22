@@ -88,3 +88,4 @@ WEEKDAYS = (
 )
 TIME_PERIOD = r"am|pm"
 QUARTER = r"[Qq][1-4]"
+RELATIVE_UNIT = r"days?|weeks?|months?|years?"
