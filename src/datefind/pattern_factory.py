@@ -173,11 +173,11 @@ RELATIVE_COUNT_AGO = rf"""
 """
 RELATIVE_COUNT_IN = rf"""
     {START}
-    (?<!\w)(?P<rel_in>in)
+    (?<!\w)(?:in)
     {SEPARATOR}
     (?P<rel_count>\d+)
     {SEPARATOR}
-    (?P<rel_unit>{RELATIVE_UNIT})
+    (?P<rel_unit>{RELATIVE_UNIT})(?!\w)
     {END}
 """
 RELATIVE_COUNT_FROM_NOW = rf"""
@@ -186,7 +186,7 @@ RELATIVE_COUNT_FROM_NOW = rf"""
     {SEPARATOR}
     (?P<rel_unit>{RELATIVE_UNIT})
     {SEPARATOR}
-    (?P<rel_from_now>from{SEPARATOR}now)(?!\w)
+    (?:from{SEPARATOR}now)(?!\w)
     {END}
 """
 

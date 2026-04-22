@@ -138,6 +138,8 @@ def test_raise_error_on_invalid_timezone():
         # Word-boundary anchoring for relative counts
         ("spin 3 days", []),
         ("contain 2 weeks", []),
+        ("in 2 weekly", []),
+        ("in 3 daysx", []),
     ],
 )
 @freeze_time("2024-03-01")
@@ -274,6 +276,28 @@ def test_last_month(debug):
     text = "last month"
     dates = list(find_dates(text, first="month", tz="UTC"))
     assert len(dates) == 0
+
+
+@freeze_time("2024-01-15")
+def test_last_month_crosses_year_boundary(debug):
+    """Verify 'last month' from January resolves to December of the prior year."""
+    # Given: today is January 15, 2024
+    # When: parsing "last month"
+    dates = list(find_dates("last month", first="month", tz="UTC"))
+    # Then: resolves to December 15, 2023
+    assert len(dates) == 1
+    assert dates[0].datetime.strftime("%Y-%m-%d") == "2023-12-15"
+
+
+@freeze_time("2024-12-15")
+def test_next_month_crosses_year_boundary(debug):
+    """Verify 'next month' from December resolves to January of the next year."""
+    # Given: today is December 15, 2024
+    # When: parsing "next month"
+    dates = list(find_dates("next month", first="month", tz="UTC"))
+    # Then: resolves to January 15, 2025
+    assert len(dates) == 1
+    assert dates[0].datetime.strftime("%Y-%m-%d") == "2025-01-15"
 
 
 @freeze_time("2024-03-31")
