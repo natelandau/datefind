@@ -21,9 +21,15 @@ from datefind.constants import (
     NEXT_MONTH,
     NEXT_WEEK,
     NEXT_YEAR,
+    QUARTER,
+    RELATIVE_UNIT,
     SEP_CHARS,
+    THIS_MONTH,
+    THIS_WEEK,
+    THIS_YEAR,
     TODAY,
     TOMORROW,
+    WEEKDAYS,
     YESTERDAY,
     YYYY,
     YYYY_FLEXIBLE,
@@ -38,6 +44,9 @@ LAST_MONTH = rf"(?P<last_month>{LAST_MONTH})"
 NEXT_MONTH = rf"(?P<next_month>{NEXT_MONTH})"
 LAST_YEAR = rf"(?P<last_year>{LAST_YEAR})"
 NEXT_YEAR = rf"(?P<next_year>{NEXT_YEAR})"
+THIS_WEEK = rf"(?P<this_week>{THIS_WEEK})"
+THIS_MONTH = rf"(?P<this_month>{THIS_MONTH})"
+THIS_YEAR = rf"(?P<this_year>{THIS_YEAR})"
 LAST_WEEK = rf"(?P<last_week>{LAST_WEEK})"
 MM = rf"(?P<month>{MM})"
 MM_FLEXIBLE = rf"(?P<month>{MM_FLEXIBLE})"
@@ -45,12 +54,17 @@ MONTH_AS_TEXT = f"(?P<month_as_text>{MONTH})"
 NEXT_WEEK = rf"(?P<next_week>{NEXT_WEEK})"
 SEPARATOR = rf"[{SEP_CHARS}]*?"
 MONTH_DAY_SEPARATOR = rf"{SEPARATOR}(?:the|of)?{SEPARATOR}"
-START = rf"(?<![0-9]|[0-9][{SEP_CHARS}])"
+# [Qq] excluded so that a digit following an invalid quarter (e.g. "Q5 2024") cannot
+# be consumed by numeric patterns like xxf_xxf_xxf.
+START = rf"(?<![0-9]|[0-9][{SEP_CHARS}]|[Qq])"
 TODAY = rf"(?P<today>{TODAY})"
 TOMORROW = rf"(?P<tomorrow>{TOMORROW})"
 YESTERDAY = rf"(?P<yesterday>{YESTERDAY})"
 YYYY = rf"(?P<year>{YYYY})"
 YYYY_FLEXIBLE = rf"(?P<year>{YYYY_FLEXIBLE})"
+# 2-digit year alternative requires no preceding digit. Prevents MONTH_DD_YYYY from
+# splitting a 4-digit year like "2025" into day=20 + 2-digit year=25.
+YYYY_FLEXIBLE_NO_PREV_DIGIT = r"(?P<year>19\d\d|20\d\d|(?<!\d)\d\d)"
 
 ISO8601 = r"(?P<year>-?(\:[1-9][0-9]*)?[0-9]{4})\-(?P<month>1[0-2]|0[1-9])\-(?P<day>3[01]|0[1-9]|[12][0-9])T(?P<hour>2[0-3]|[01][0-9])\:(?P<minute>[0-5][0-9]):(?P<seconds>[0-5][0-9])(?:[\.,]+(?P<microseconds>[0-9]+))?(?P<offset>(?:Z|[+-](?:2[0-3]|[01][0-9])\:[0-5][0-9]))?"
 
@@ -79,7 +93,7 @@ MONTH_DD_YYYY = rf"""
     {MONTH_DAY_SEPARATOR}
     ({DD_FLEXIBLE}|{DD_AS_TEXT})
     {MONTH_DAY_SEPARATOR}
-    {YYYY}
+    {YYYY_FLEXIBLE_NO_PREV_DIGIT}
     {END}
 """
 YYYY_MONTH = rf"""
@@ -105,7 +119,7 @@ MONTH_YYYY = rf"""
 """
 NATURAL_DATE = rf"""
     {START}
-    {TODAY}|{YESTERDAY}|{TOMORROW}|{LAST_WEEK}|{NEXT_WEEK}|{LAST_MONTH}|{NEXT_MONTH}|{LAST_YEAR}|{NEXT_YEAR}
+    {TODAY}|{YESTERDAY}|{TOMORROW}|{LAST_WEEK}|{NEXT_WEEK}|{THIS_WEEK}|{LAST_MONTH}|{NEXT_MONTH}|{THIS_MONTH}|{LAST_YEAR}|{NEXT_YEAR}|{THIS_YEAR}
     {END}
 """
 YYYY_MM = rf"""
@@ -120,6 +134,59 @@ MM_YYYY = rf"""
     {MM}
     {MONTH_DAY_SEPARATOR}
     {YYYY}
+    {END}
+"""
+QUARTER_YYYY = rf"""
+    {START}
+    (?P<quarter>{QUARTER})
+    {SEPARATOR}
+    {YYYY}
+    {END}
+"""
+YYYY_QUARTER = rf"""
+    {START}
+    {YYYY}
+    {SEPARATOR}
+    (?P<quarter>{QUARTER})
+    {END}
+"""
+RELATIVE_WEEKDAY = rf"""
+    {START}
+    (?<!\w)(?P<weekday_modifier>last|next|this)
+    {SEPARATOR}
+    (?P<weekday>{WEEKDAYS})(?!\w)
+    {END}
+"""
+BARE_WEEKDAY = rf"""
+    {START}
+    (?<!\w)(?P<bare_weekday>{WEEKDAYS})(?!\w)
+    {END}
+"""
+RELATIVE_COUNT_AGO = rf"""
+    {START}
+    (?P<rel_count>\d+)
+    {SEPARATOR}
+    (?P<rel_unit>{RELATIVE_UNIT})
+    {SEPARATOR}
+    (?P<rel_ago>ago)(?!\w)
+    {END}
+"""
+RELATIVE_COUNT_IN = rf"""
+    {START}
+    (?<!\w)(?:in)
+    {SEPARATOR}
+    (?P<rel_count>\d+)
+    {SEPARATOR}
+    (?P<rel_unit>{RELATIVE_UNIT})(?!\w)
+    {END}
+"""
+RELATIVE_COUNT_FROM_NOW = rf"""
+    {START}
+    (?P<rel_count>\d+)
+    {SEPARATOR}
+    (?P<rel_unit>{RELATIVE_UNIT})
+    {SEPARATOR}
+    (?:from{SEPARATOR}now)(?!\w)
     {END}
 """
 
@@ -184,6 +251,6 @@ class PatternFactory:
                 assert_never(self.first_number)
 
         return re.compile(
-            f"""{DD_MONTH_YYYY}|{MONTH_DD_YYYY}|{YYYY_MONTH_DD}|{MONTH_DD}|{YYYY_MONTH}|{MONTH_YYYY}|{NATURAL_DATE}|{yyyy_xx_xx}|{xx_xx_xx}|{YYYY_MM}|{MM_YYYY}|{yyyy_xxf_xxf}|{xxf_xxf_xxf}""",
+            f"""{DD_MONTH_YYYY}|{MONTH_DD_YYYY}|{YYYY_MONTH_DD}|{MONTH_DD}|{YYYY_MONTH}|{MONTH_YYYY}|{NATURAL_DATE}|{RELATIVE_COUNT_AGO}|{RELATIVE_COUNT_IN}|{RELATIVE_COUNT_FROM_NOW}|{QUARTER_YYYY}|{YYYY_QUARTER}|{RELATIVE_WEEKDAY}|{yyyy_xx_xx}|{xx_xx_xx}|{YYYY_MM}|{MM_YYYY}|{yyyy_xxf_xxf}|{xxf_xxf_xxf}|{BARE_WEEKDAY}""",
             re.IGNORECASE | re.VERBOSE | re.MULTILINE | re.UNICODE | re.DOTALL,
         )

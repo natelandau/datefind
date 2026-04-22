@@ -1,11 +1,9 @@
-# Scratch folder for temporary files
 scratch/
 tmp/
 .dev/
-.cursor/
-GEMINI.md
 .claude/
 .worktrees/
+docs/
 
 # Python
 .venv/
@@ -15,5 +13,3 @@ __pycache__/
 .cache/
 
 .DS_Store
-.github/copilot-instructions.md
-.github/instructions/

@@ -80,7 +80,12 @@ LAST_MONTH = rf"last{SEP_CHARS_REGEX}month'?s?"
 NEXT_MONTH = rf"next{SEP_CHARS_REGEX}month'?s?"
 LAST_YEAR = rf"last{SEP_CHARS_REGEX}year'?s?"
 NEXT_YEAR = rf"next{SEP_CHARS_REGEX}year'?s?"
+THIS_WEEK = rf"this{SEP_CHARS_REGEX}week'?s?"
+THIS_MONTH = rf"this{SEP_CHARS_REGEX}month'?s?"
+THIS_YEAR = rf"this{SEP_CHARS_REGEX}year'?s?"
 WEEKDAYS = (
     r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu|thurs?|fri|sat|sun"
 )
 TIME_PERIOD = r"am|pm"
+QUARTER = r"[Qq][1-4]"
+RELATIVE_UNIT = r"days?|weeks?|months?|years?"

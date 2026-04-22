@@ -7,8 +7,11 @@ A python module for locating dates within text. Use this package to search for d
 Finds dates in many different formats.
 
 -   All numeric - `2024-01-01`, `01/01/2024`, `01012024`, etc.
--   Natural language - `January 1st, 2024`, `March nineteenth, 2024`, `twenty fifth of January`, etc.
--   Fuzzy dates - `today`, `yesterday`, `tomorrow`, `last week`, `next week`, etc.
+-   Natural language - `January 1st, 2024`, `March nineteenth, 2024`, `twenty fifth of January`, `Mar 15, 24`, etc.
+-   Fuzzy dates - `today`, `yesterday`, `tomorrow`, `last week`, `this week`, `next week`, etc.
+-   Relative offsets - `3 days ago`, `in 2 weeks`, `1 year from now`, etc.
+-   Weekdays - `Monday`, `next Friday`, `last Tuesday`, etc.
+-   Quarters - `Q1 2024`, `2024 Q3`, etc.
 
 > [!NOTE]\
 > `datefind` is designed to be used with year, month, and day only. It does not support hours, minutes, seconds, or microseconds.
