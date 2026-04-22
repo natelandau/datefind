@@ -66,6 +66,7 @@ def test_raise_error_on_invalid_timezone():
         ("Mar 15, 24", [datetime(2024, 3, 15)]),
         ("March 15 24", [datetime(2024, 3, 15)]),
         ("march 3rd 99", [datetime(2099, 3, 3)]),
+        ("march 20 2025", [datetime(2025, 3, 20)]),
         ("march 2025", [datetime(2025, 3, 1)]),
         ("january, of 1998", [datetime(1998, 1, 1)]),
         ("second january, of 1998", [datetime(1998, 1, 2)]),
