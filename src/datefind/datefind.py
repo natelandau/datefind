@@ -168,12 +168,12 @@ class DateFind:
 
     @staticmethod
     def _month_to_number(match: re.Match) -> int | None:
-        """Parse a month string from a regex match into a numeric month (1-12).
+        """Parse a month string or quarter designator from a regex match into a numeric month (1-12).
 
-        Convert both text month names (e.g. "January", "Feb") and numeric months from the regex match. Text matching is case-insensitive.
+        Convert quarter designators (e.g. "Q2" → 4), text month names (e.g. "January", "Feb"), and numeric months from the regex match. Text matching is case-insensitive.
 
         Args:
-            match (re.Match): The regex match containing month information in named groups
+            match (re.Match): The regex match containing month or quarter information in named groups
 
         Returns:
             int: The numeric month value (1-12)

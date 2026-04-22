@@ -52,6 +52,8 @@ MONTH_AS_TEXT = f"(?P<month_as_text>{MONTH})"
 NEXT_WEEK = rf"(?P<next_week>{NEXT_WEEK})"
 SEPARATOR = rf"[{SEP_CHARS}]*?"
 MONTH_DAY_SEPARATOR = rf"{SEPARATOR}(?:the|of)?{SEPARATOR}"
+# [Qq] excluded so that a digit following an invalid quarter (e.g. "Q5 2024") cannot
+# be consumed by numeric patterns like xxf_xxf_xxf.
 START = rf"(?<![0-9]|[0-9][{SEP_CHARS}]|[Qq])"
 TODAY = rf"(?P<today>{TODAY})"
 TOMORROW = rf"(?P<tomorrow>{TOMORROW})"
