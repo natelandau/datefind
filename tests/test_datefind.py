@@ -135,6 +135,9 @@ def test_raise_error_on_invalid_timezone():
         ("0 days ago", [datetime(2024, 3, 1)]),
         ("days ago", []),
         ("in days", []),
+        # Word-boundary anchoring for relative counts
+        ("spin 3 days", []),
+        ("contain 2 weeks", []),
     ],
 )
 @freeze_time("2024-03-01")

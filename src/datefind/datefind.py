@@ -206,7 +206,7 @@ class DateFind:
         # Bare weekday — same as "next": always future
         return now + timedelta(days=(target - current) % 7 or 7)
 
-    def _handle_relative_count(self, match: re.Match) -> datetime | None:  # noqa: PLR0911
+    def _handle_relative_count(self, match: re.Match) -> datetime | None:
         """Resolve N-unit-ago / in-N-unit / N-unit-from-now expressions to a datetime.
 
         Compute a concrete datetime by offsetting the current time by N of the matched unit (days, weeks, months, years). Direction is determined by which named group fired: rel_ago subtracts; rel_in and rel_from_now add. Invalid target dates (e.g., Feb 29 + 1 year in a non-leap year) resolve to None.
@@ -218,9 +218,7 @@ class DateFind:
             datetime | None: The resolved datetime, or None if no relative-count groups matched or the target date is invalid
         """
         groups = match.groupdict()
-        count = groups.get("rel_count")
-        unit = groups.get("rel_unit")
-        if not count or not unit:
+        if not (count := groups.get("rel_count")) or not (unit := groups.get("rel_unit")):
             return None
 
         n = int(count)
@@ -239,12 +237,11 @@ class DateFind:
                 new_month_index = (now.month - 1) + (n * sign)
                 year_offset, month_zero = divmod(new_month_index, 12)
                 return now.replace(year=now.year + year_offset, month=month_zero + 1)
-            if unit_lower == "year":
-                return now.replace(year=now.year + (n * sign))
+            # Only remaining unit is "year"
+            return now.replace(year=now.year + (n * sign))
         except ValueError:
             # Target day-of-month does not exist in resolved month/year
             return None
-        return None
 
     @staticmethod
     def _year_to_number(match: re.Match) -> int | None:
