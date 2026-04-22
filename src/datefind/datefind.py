@@ -31,6 +31,25 @@ from .constants import (
 
 console = Console()
 
+_WEEKDAY_TO_NUM = {
+    "monday": 0,
+    "mon": 0,
+    "tuesday": 1,
+    "tues": 1,
+    "tue": 1,
+    "wednesday": 2,
+    "wed": 2,
+    "thursday": 3,
+    "thurs": 3,
+    "thu": 3,
+    "friday": 4,
+    "fri": 4,
+    "saturday": 5,
+    "sat": 5,
+    "sunday": 6,
+    "sun": 6,
+}
+
 
 @dataclass
 class FoundDate:
@@ -83,6 +102,8 @@ class DateFind:
 
         for match in matches:
             as_dt = self._handle_relative_dates(match=match)
+            if not as_dt:
+                as_dt = self._handle_weekday(match=match)
 
             groups = match.groupdict()
             has_date_component = any(
@@ -146,6 +167,41 @@ class DateFind:
                     return None
 
         return None
+
+    def _handle_weekday(self, match: re.Match) -> datetime | None:
+        """Resolve weekday references to a concrete datetime.
+
+        Convert bare weekday names (`Monday`) and modifier-prefixed weekdays (`next Monday`, `last Friday`, `this Tuesday`) into concrete datetime objects relative to the current date. Bare weekdays and `next`-prefixed resolve to the next occurrence (always future). `last`-prefixed resolves to the prior occurrence (always past). `this`-prefixed resolves to the upcoming occurrence in the current calendar week (today if target is today).
+
+        Args:
+            match (re.Match): The regex match containing weekday information in named groups
+
+        Returns:
+            datetime | None: The resolved datetime, or None if no weekday group matched
+        """
+        groups = match.groupdict()
+        weekday_str = groups.get("weekday") or groups.get("bare_weekday")
+        if not weekday_str:
+            return None
+
+        target = _WEEKDAY_TO_NUM[weekday_str.lower()]
+        now = datetime.now(self.tz)
+        current = now.weekday()
+        modifier = (groups.get("weekday_modifier") or "").lower()
+
+        if modifier == "last":
+            # Always prior week's occurrence, even if target == current day
+            days_back = (current - target) % 7 or 7
+            return now - timedelta(days=days_back)
+        if modifier == "next":
+            # Always next week's occurrence, even if target == current day
+            days_fwd = (target - current) % 7 or 7
+            return now + timedelta(days=days_fwd)
+        if modifier == "this":
+            # This calendar week's occurrence; today if target == current day
+            return now + timedelta(days=(target - current) % 7)
+        # Bare weekday — same as "next": always future
+        return now + timedelta(days=(target - current) % 7 or 7)
 
     @staticmethod
     def _year_to_number(match: re.Match) -> int | None:

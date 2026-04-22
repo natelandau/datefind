@@ -28,6 +28,7 @@ from datefind.constants import (
     THIS_YEAR,
     TODAY,
     TOMORROW,
+    WEEKDAYS,
     YESTERDAY,
     YYYY,
     YYYY_FLEXIBLE,
@@ -148,6 +149,18 @@ YYYY_QUARTER = rf"""
     (?P<quarter>{QUARTER})
     {END}
 """
+RELATIVE_WEEKDAY = rf"""
+    {START}
+    (?P<weekday_modifier>last|next|this)
+    {SEPARATOR}
+    (?P<weekday>{WEEKDAYS})
+    {END}
+"""
+BARE_WEEKDAY = rf"""
+    {START}
+    (?P<bare_weekday>{WEEKDAYS})
+    {END}
+"""
 
 
 class PatternFactory:
@@ -210,6 +223,6 @@ class PatternFactory:
                 assert_never(self.first_number)
 
         return re.compile(
-            f"""{DD_MONTH_YYYY}|{MONTH_DD_YYYY}|{YYYY_MONTH_DD}|{MONTH_DD}|{YYYY_MONTH}|{MONTH_YYYY}|{NATURAL_DATE}|{QUARTER_YYYY}|{YYYY_QUARTER}|{yyyy_xx_xx}|{xx_xx_xx}|{YYYY_MM}|{MM_YYYY}|{yyyy_xxf_xxf}|{xxf_xxf_xxf}""",
+            f"""{DD_MONTH_YYYY}|{MONTH_DD_YYYY}|{YYYY_MONTH_DD}|{MONTH_DD}|{YYYY_MONTH}|{MONTH_YYYY}|{NATURAL_DATE}|{QUARTER_YYYY}|{YYYY_QUARTER}|{RELATIVE_WEEKDAY}|{yyyy_xx_xx}|{xx_xx_xx}|{YYYY_MM}|{MM_YYYY}|{yyyy_xxf_xxf}|{xxf_xxf_xxf}|{BARE_WEEKDAY}""",
             re.IGNORECASE | re.VERBOSE | re.MULTILINE | re.UNICODE | re.DOTALL,
         )

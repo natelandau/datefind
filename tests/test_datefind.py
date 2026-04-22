@@ -104,6 +104,18 @@ def test_raise_error_on_invalid_timezone():
         ("2024-Q4", [datetime(2024, 10, 1)]),
         ("Q5 2024", []),
         ("Q1", []),
+        # Bare weekday — next occurrence
+        ("Monday", [datetime(2024, 3, 4)]),
+        ("Friday", [datetime(2024, 3, 8)]),
+        ("mon", [datetime(2024, 3, 4)]),
+        ("sunday", [datetime(2024, 3, 3)]),
+        # Relative weekday
+        ("next Monday", [datetime(2024, 3, 4)]),
+        ("last Monday", [datetime(2024, 2, 26)]),
+        ("this Monday", [datetime(2024, 3, 4)]),
+        ("this Friday", [datetime(2024, 3, 1)]),
+        ("last Friday", [datetime(2024, 2, 23)]),
+        ("next Friday", [datetime(2024, 3, 8)]),
     ],
 )
 @freeze_time("2024-03-01")
