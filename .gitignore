@@ -4,6 +4,8 @@ tmp/
 .dev/
 .cursor/
 GEMINI.md
+.claude/
+.worktrees/
 
 # Python
 .venv/

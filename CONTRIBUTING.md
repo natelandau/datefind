@@ -4,10 +4,10 @@ Thank you for your interest in contributing to datefind! This document provides 
 
 ## Types of Contributions Welcome
 
--   Bug fixes
--   Feature enhancements
--   Documentation improvements
--   Test additions
+- Bug fixes
+- Feature enhancements
+- Documentation improvements
+- Test additions
 
 ## Development Setup
 
@@ -20,25 +20,25 @@ This project uses [uv](https://docs.astral.sh/uv/) for dependency management. To
 3. Navigate to the repository: `cd datefind`
 4. Install dependencies with uv: `uv sync`
 5. Activate your virtual environment: `source .venv/bin/activate`
-6. Install pre-commit hooks: `pre-commit install --install-hooks`
+6. Install prek hooks: `prek install --install-hooks`
 
 ### Running Tasks
 
 We use [Duty](https://pawamoy.github.io/duty/) as our task runner. Common tasks:
 
--   `duty --list` - List all available tasks
--   `duty lint` - Run all linters
--   `duty test` - Run all tests
+- `duty --list` - List all available tasks
+- `duty lint` - Run all linters
+- `duty test` - Run all tests
 
 ## Development Guidelines
 
 When developing for datefind, please follow these guidelines:
 
--   Write full docstrings
--   All code should use type hints
--   Write unit tests for all new functions
--   Write integration tests for all new features
--   Follow the existing code style
+- Write full docstrings
+- All code should use type hints
+- Write unit tests for all new functions
+- Write integration tests for all new features
+- Follow the existing code style
 
 ## Commit Process
 
