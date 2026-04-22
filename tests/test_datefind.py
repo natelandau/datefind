@@ -118,7 +118,6 @@ def test_raise_error_on_invalid_timezone():
         ("next Friday", [datetime(2024, 3, 8)]),
         # Bare weekday substring prevention
         ("among friends", []),
-        ("thursday thunder", [datetime(2024, 3, 7)]),  # only "thursday" matches, "thunder" ignored
         ("sunlight", []),
     ],
 )
@@ -134,11 +133,8 @@ def test_find_dates(text, expected, debug):
     assert len(dates) == len(expected)
     for i, date in enumerate(dates):
         assert date.datetime.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
-        # Only verify full-text match for single-token inputs; multi-word inputs may contain
-        # non-date words that are excluded from the match span
-        if " " not in text:
-            assert date.match == text
-            assert date.span == (0, len(text))
+        assert date.match == text
+        assert date.span == (0, len(text))
 
 
 @freeze_time("2024-03-01")
@@ -246,3 +242,19 @@ def test_last_month(debug):
     text = "last month"
     dates = list(find_dates(text, first="month", tz="UTC"))
     assert len(dates) == 0
+
+
+@freeze_time("2024-03-01")
+def test_find_dates_partial_match_in_word_context(debug):
+    """Verify weekday patterns match only whole words, not substrings of other words."""
+    # Given: text where a full weekday word appears alongside a word that contains a weekday substring
+    text = "thursday thunder"
+
+    # When: finding dates
+    dates = list(find_dates(text, first="month", tz="UTC"))
+
+    # Then: only the full weekday word matches; "thu" inside "thunder" does not
+    assert len(dates) == 1
+    assert dates[0].datetime.strftime("%Y-%m-%d") == "2024-03-07"
+    assert dates[0].match == "thursday"
+    assert dates[0].span == (0, 8)
