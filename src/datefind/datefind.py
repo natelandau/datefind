@@ -11,20 +11,8 @@ from rich.console import Console
 from datefind.pattern_factory import PatternFactory
 
 from .constants import (
-    APRIL,
-    AUGUST,
     CENTURY,
-    DECEMBER,
-    FEBRUARY,
-    JANUARY,
-    JULY,
-    JUNE,
-    MARCH,
-    MAY,
-    NOVEMBER,
-    OCTOBER,
     SEP_CHARS,
-    SEPTEMBER,
     DayToNumber,
     FirstNumber,
 )
@@ -50,6 +38,65 @@ _WEEKDAY_TO_NUM = {
     "sunday": 6,
     "sun": 6,
 }
+
+_SIMPLE_OFFSET_DAYS = {
+    "today": 0,
+    "yesterday": -1,
+    "tomorrow": 1,
+    "last_week": -7,
+    "next_week": 7,
+    "this_week": 0,
+    "this_month": 0,
+    "this_year": 0,
+}
+_MONTH_ADJUSTMENTS = {"last_month": -1, "next_month": 1}
+_YEAR_ADJUSTMENTS = {"last_year": -1, "next_year": 1}
+_RELATIVE_DATE_KEYS = (
+    frozenset(_SIMPLE_OFFSET_DAYS) | frozenset(_MONTH_ADJUSTMENTS) | frozenset(_YEAR_ADJUSTMENTS)
+)
+
+# Two-letter keys cover the `xx?` optional-final-char alternation branches in
+# constants.MONTH (e.g., `jan?` can capture "ja"); three-letter keys cover standard
+# abbreviations and longer names via a first-3-chars slice.
+_MONTH_TEXT_MAP = {
+    "ja": 1,
+    "jan": 1,
+    "fe": 2,
+    "feb": 2,
+    "ma": 3,
+    "mar": 3,
+    "ap": 4,
+    "apr": 4,
+    "may": 5,
+    "jun": 6,
+    "jul": 7,
+    "au": 8,
+    "aug": 8,
+    "sep": 9,
+    "oc": 10,
+    "oct": 10,
+    "no": 11,
+    "nov": 11,
+    "de": 12,
+    "dec": 12,
+}
+
+
+def _offset_months(now: datetime, n: int) -> datetime:
+    """Offset a datetime by n months, carrying across year boundaries.
+
+    Naive `replace(month=now.month + n)` fails at year boundaries (January - 1 or December + 1). This helper uses divmod so the carry into year is correct.
+
+    Args:
+        now (datetime): The datetime to offset.
+        n (int): The number of months to offset by. Positive shifts forward, negative backward.
+
+    Returns:
+        datetime: The offset datetime. May raise ValueError if the target day-of-month does not exist (e.g., January 31 + 1 month).
+    """
+    new_month_index = (now.month - 1) + n
+    year_offset, month_zero = divmod(new_month_index, 12)
+    return now.replace(year=now.year + year_offset, month=month_zero + 1)
 
 
 @dataclass
@@ -99,177 +146,145 @@ class DateFind:
             Generator[FoundDate, None, None]: A sequence of FoundDate objects containing the parsed datetime, original text, matched pattern, and location of the match.
         """
         regex = self.factory.make_regex()
-        matches = regex.finditer(self.text)
+        now = datetime.now(self.tz)
 
-        for match in matches:
-            as_dt = self._handle_relative_dates(match=match)
-            if not as_dt:
-                as_dt = self._handle_relative_count(match=match)
-            if not as_dt:
-                as_dt = self._handle_weekday(match=match)
-
+        for match in regex.finditer(self.text):
             groups = match.groupdict()
+            as_dt: datetime | None = None
+
+            if any(groups.get(k) for k in _RELATIVE_DATE_KEYS):
+                as_dt = self._handle_relative_dates(groups, now)
+            elif groups.get("rel_count"):
+                as_dt = self._handle_relative_count(groups, now)
+            elif groups.get("weekday") or groups.get("bare_weekday"):
+                as_dt = self._handle_weekday(groups, now)
+
             has_date_component = any(
                 groups.get(key) for key in ("year", "month", "day", "month_as_text", "day_as_text")
             )
             if not as_dt and has_date_component:
-                day = self._day_to_number(match=match) or 1
-                month = self._month_to_number(match=match) or datetime.now(self.tz).month
-                year = self._year_to_number(match=match) or datetime.now(self.tz).year
+                day = self._day_to_number(groups) or 1
+                month = self._month_to_number(groups) or now.month
+                year = self._year_to_number(groups) or now.year
                 as_dt = datetime(year=int(year), month=month, day=day, tzinfo=self.tz)
 
             if as_dt:
-                date = FoundDate(
+                yield FoundDate(
                     datetime=as_dt,
                     match=match.group(),
                     span=match.span(),
                 )
-                yield date
 
-    def _handle_relative_dates(self, match: re.Match) -> datetime | None:
+    @staticmethod
+    def _handle_relative_dates(groups: dict[str, str | None], now: datetime) -> datetime | None:
         """Parse relative date patterns like 'today', 'yesterday', 'next week' into datetime objects.
 
         Convert relative date references in the matched text into concrete datetime objects using the configured timezone. Handles basic time periods (today/tomorrow/yesterday), same-period "this" references (this week/month/year), and relative time spans (last/next week/month/year).
 
         Args:
-            match (re.Match): The regex match containing relative date pattern groups
+            groups (dict[str, str | None]): The regex match groupdict containing relative date pattern groups
+            now (datetime): The current time in the target timezone
 
         Returns:
             datetime | None: The parsed datetime object if a relative pattern was matched, None otherwise
         """
-        groups = match.groupdict()
-        now = datetime.now(self.tz)
-
-        simple_offsets = {
-            "today": now,
-            "yesterday": now - timedelta(days=1),
-            "tomorrow": now + timedelta(days=1),
-            "last_week": now - timedelta(days=7),
-            "next_week": now + timedelta(days=7),
-            "this_week": now,
-            "this_month": now,
-            "this_year": now,
-        }
-        for key, value in simple_offsets.items():
+        for key, days in _SIMPLE_OFFSET_DAYS.items():
             if groups.get(key):
-                return value
+                return now + timedelta(days=days)
 
-        adjustments = {
-            "last_month": lambda: self._offset_months(now, -1),
-            "next_month": lambda: self._offset_months(now, 1),
-            "last_year": lambda: now.replace(year=now.year - 1),
-            "next_year": lambda: now.replace(year=now.year + 1),
-        }
-        for key, fn in adjustments.items():
+        for key, delta in _MONTH_ADJUSTMENTS.items():
             if groups.get(key):
                 try:
-                    return fn()
+                    return _offset_months(now, delta)
                 except ValueError:
-                    # Target day-of-month does not exist in resolved month/year
+                    return None
+
+        for key, delta in _YEAR_ADJUSTMENTS.items():
+            if groups.get(key):
+                try:
+                    return now.replace(year=now.year + delta)
+                except ValueError:
                     return None
 
         return None
 
     @staticmethod
-    def _offset_months(now: datetime, n: int) -> datetime:
-        """Offset a datetime by n months, carrying across year boundaries.
-
-        Use when shifting a month value by an arbitrary signed integer N. Naive `replace(month=now.month + n)` fails at year boundaries (January - 1 or December + 1). This helper uses divmod so the carry into year is correct.
-
-        Args:
-            now (datetime): The datetime to offset.
-            n (int): The number of months to offset by. Positive shifts forward, negative backward.
-
-        Returns:
-            datetime: The offset datetime. May raise ValueError if the target day-of-month does not exist (e.g., January 31 + 1 month).
-        """
-        new_month_index = (now.month - 1) + n
-        year_offset, month_zero = divmod(new_month_index, 12)
-        return now.replace(year=now.year + year_offset, month=month_zero + 1)
-
-    def _handle_weekday(self, match: re.Match) -> datetime | None:
+    def _handle_weekday(groups: dict[str, str | None], now: datetime) -> datetime | None:
         """Resolve weekday references to a concrete datetime.
 
         Convert bare weekday names (`Monday`) and modifier-prefixed weekdays (`next Monday`, `last Friday`, `this Tuesday`) into concrete datetime objects relative to the current date. Bare weekdays and `next`-prefixed resolve to the next occurrence (always future). `last`-prefixed resolves to the prior occurrence (always past). `this`-prefixed resolves to the next occurrence within 0-6 days (today if target is today).
 
         Args:
-            match (re.Match): The regex match containing weekday information in named groups
+            groups (dict[str, str | None]): The regex match groupdict containing weekday information in named groups
+            now (datetime): The current time in the target timezone
 
         Returns:
             datetime | None: The resolved datetime, or None if no weekday group matched
         """
-        groups = match.groupdict()
         weekday_str = groups.get("weekday") or groups.get("bare_weekday")
         if not weekday_str:
             return None
 
         target = _WEEKDAY_TO_NUM[weekday_str.lower()]
-        now = datetime.now(self.tz)
         current = now.weekday()
         modifier = (groups.get("weekday_modifier") or "").lower()
 
         if modifier == "last":
-            # Always prior week's occurrence, even if target == current day
-            days_back = (current - target) % 7 or 7
-            return now - timedelta(days=days_back)
-        if modifier == "next":
-            # Always next week's occurrence, even if target == current day
-            days_fwd = (target - current) % 7 or 7
-            return now + timedelta(days=days_fwd)
+            # `or 7` forces a full-week jump when target == current
+            return now - timedelta(days=(current - target) % 7 or 7)
         if modifier == "this":
-            # This calendar week's occurrence; today if target == current day
+            # No `or 7` here: today is a valid "this <weekday>"
             return now + timedelta(days=(target - current) % 7)
-        # Bare weekday — same as "next": always future
+        # `next` or bare weekday — always future
         return now + timedelta(days=(target - current) % 7 or 7)
 
-    def _handle_relative_count(self, match: re.Match) -> datetime | None:  # noqa: PLR0911
+    @staticmethod
+    def _handle_relative_count(  # noqa: PLR0911
+        groups: dict[str, str | None], now: datetime
+    ) -> datetime | None:
         """Resolve N-unit-ago / in-N-unit / N-unit-from-now expressions to a datetime.
 
         Compute a concrete datetime by offsetting the current time by N of the matched unit (days, weeks, months, years). Direction is determined by presence of the `rel_ago` named group: if set, subtracts; otherwise (for "in" and "from now") adds. Invalid target dates (e.g., Feb 29 + 1 year in a non-leap year) resolve to None.
 
         Args:
-            match (re.Match): The regex match containing rel_count, rel_unit, and optionally rel_ago
+            groups (dict[str, str | None]): The regex match groupdict containing rel_count, rel_unit, and optionally rel_ago
+            now (datetime): The current time in the target timezone
 
         Returns:
             datetime | None: The resolved datetime, or None if no relative-count groups matched or the target date is invalid
         """
-        groups = match.groupdict()
         if not (count := groups.get("rel_count")) or not (unit := groups.get("rel_unit")):
             return None
 
-        n = int(count)
-        sign = -1 if groups.get("rel_ago") else 1
+        offset = int(count) * (-1 if groups.get("rel_ago") else 1)
         unit_lower = unit.lower().rstrip("s")
-        now = datetime.now(self.tz)
-
-        if unit_lower == "day":
-            return now + timedelta(days=n * sign)
-        if unit_lower == "week":
-            return now + timedelta(weeks=n * sign)
 
         try:
+            if unit_lower == "day":
+                return now + timedelta(days=offset)
+            if unit_lower == "week":
+                return now + timedelta(weeks=offset)
             if unit_lower == "month":
-                return self._offset_months(now, n * sign)
+                return _offset_months(now, offset)
             if unit_lower == "year":
-                return now.replace(year=now.year + (n * sign))
+                return now.replace(year=now.year + offset)
         except ValueError:
-            # Target day-of-month does not exist in resolved month/year
             return None
         return None
 
     @staticmethod
-    def _year_to_number(match: re.Match) -> int | None:
+    def _year_to_number(groups: dict[str, str | None]) -> int | None:
         """Parse a year string from a regex match into a numeric year.
 
         Convert 2-digit years to 4-digit years by prepending the current century. For example, '23' becomes '2023'.
 
         Args:
-            match (re.Match): The regex match containing year information in named groups
+            groups (dict[str, str | None]): The regex match groupdict containing year information in named groups
 
         Returns:
             int: The numeric year value
         """
-        if year := match.groupdict().get("year"):
+        if year := groups.get("year"):
             if len(year) == 2:  # noqa: PLR2004
                 return int(f"{CENTURY}{year}")
             return int(year)
@@ -277,63 +292,45 @@ class DateFind:
         return None
 
     @staticmethod
-    def _month_to_number(match: re.Match) -> int | None:
+    def _month_to_number(groups: dict[str, str | None]) -> int | None:
         """Parse a month string or quarter designator from a regex match into a numeric month (1-12).
 
         Convert quarter designators (e.g. "Q2" → 4), text month names (e.g. "January", "Feb"), and numeric months from the regex match. Text matching is case-insensitive.
 
         Args:
-            match (re.Match): The regex match containing month or quarter information in named groups
+            groups (dict[str, str | None]): The regex match groupdict containing month or quarter information in named groups
 
         Returns:
             int: The numeric month value (1-12)
         """
-        if quarter := match.groupdict().get("quarter"):
-            q = int(quarter[-1])
-            return (q - 1) * 3 + 1  # Q1→1, Q2→4, Q3→7, Q4→10
+        if quarter := groups.get("quarter"):
+            return (int(quarter[-1]) - 1) * 3 + 1
 
-        month_patterns = {
-            JANUARY: 1,
-            FEBRUARY: 2,
-            MARCH: 3,
-            APRIL: 4,
-            MAY: 5,
-            JUNE: 6,
-            JULY: 7,
-            AUGUST: 8,
-            SEPTEMBER: 9,
-            OCTOBER: 10,
-            NOVEMBER: 11,
-            DECEMBER: 12,
-        }
+        if month_as_text := groups.get("month_as_text"):
+            return _MONTH_TEXT_MAP.get(month_as_text.lower()[:3])
 
-        if month_as_text := match.groupdict().get("month_as_text"):
-            for pattern, number in month_patterns.items():
-                if re.search(pattern, month_as_text, re.IGNORECASE):
-                    return number
-
-        if month := match.groupdict().get("month"):
+        if month := groups.get("month"):
             return int(month)
 
         return None
 
     @staticmethod
-    def _day_to_number(match: re.Match) -> int | None:
+    def _day_to_number(groups: dict[str, str | None]) -> int | None:
         """Parse a day string from a regex match into a numeric day of month.
 
         Convert both text day representations (e.g. "1st", "2nd") and numeric days from the regex match.
 
         Args:
-            match (re.Match): The regex match containing day information in named groups
+            groups (dict[str, str | None]): The regex match groupdict containing day information in named groups
 
         Returns:
             int | None: The numeric day value, or None if no day found
         """
-        if day_as_text := match.groupdict().get("day_as_text"):
+        if day_as_text := groups.get("day_as_text"):
             day_as_text = re.sub(rf"[{SEP_CHARS}]", "", day_as_text)
             return DayToNumber[day_as_text.upper()].value
 
-        if day := match.groupdict().get("day"):
+        if day := groups.get("day"):
             return int(day)
 
         return None
