@@ -41,6 +41,7 @@ _WEEKDAY_TO_NUM = {
     "wed": 2,
     "thursday": 3,
     "thurs": 3,
+    "thur": 3,
     "thu": 3,
     "friday": 4,
     "fri": 4,
@@ -171,7 +172,7 @@ class DateFind:
     def _handle_weekday(self, match: re.Match) -> datetime | None:
         """Resolve weekday references to a concrete datetime.
 
-        Convert bare weekday names (`Monday`) and modifier-prefixed weekdays (`next Monday`, `last Friday`, `this Tuesday`) into concrete datetime objects relative to the current date. Bare weekdays and `next`-prefixed resolve to the next occurrence (always future). `last`-prefixed resolves to the prior occurrence (always past). `this`-prefixed resolves to the upcoming occurrence in the current calendar week (today if target is today).
+        Convert bare weekday names (`Monday`) and modifier-prefixed weekdays (`next Monday`, `last Friday`, `this Tuesday`) into concrete datetime objects relative to the current date. Bare weekdays and `next`-prefixed resolve to the next occurrence (always future). `last`-prefixed resolves to the prior occurrence (always past). `this`-prefixed resolves to the next occurrence within 0-6 days (today if target is today).
 
         Args:
             match (re.Match): The regex match containing weekday information in named groups

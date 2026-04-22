@@ -151,14 +151,14 @@ YYYY_QUARTER = rf"""
 """
 RELATIVE_WEEKDAY = rf"""
     {START}
-    (?P<weekday_modifier>last|next|this)
+    (?<!\w)(?P<weekday_modifier>last|next|this)
     {SEPARATOR}
-    (?P<weekday>{WEEKDAYS})
+    (?P<weekday>{WEEKDAYS})(?!\w)
     {END}
 """
 BARE_WEEKDAY = rf"""
     {START}
-    (?P<bare_weekday>{WEEKDAYS})
+    (?<!\w)(?P<bare_weekday>{WEEKDAYS})(?!\w)
     {END}
 """
 
