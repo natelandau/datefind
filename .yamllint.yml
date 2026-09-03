@@ -4,16 +4,16 @@ extends: default
 
 ignore: |
   .venv
-  .cache
+
 rules:
   braces:
     level: error
     max-spaces-inside: 1
-    min-spaces-inside: 1
+    min-spaces-inside: 0
   brackets:
     level: error
     max-spaces-inside: 1
-    min-spaces-inside: 1
+    min-spaces-inside: 0
   comments-indentation: disable
   comments:
     min-spaces-from-content: 1
@@ -29,7 +29,7 @@ rules:
       - "^http://"
       - "^https://"
       - "ftp://"
-      - "ssh \\w.*"
+      - 'ssh \w.*'
   truthy:
     level: error
     check-keys: false
