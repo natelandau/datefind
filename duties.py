@@ -116,7 +116,7 @@ def update(ctx: Context) -> None:
     """Update the project."""
     ctx.run(["uv", "lock", "--upgrade"], title="update uv lock")
     ctx.run(["uv", "sync"], title="sync uv")
-    ctx.run(["prek", "auto-update"], title="prek auto-update")
+    ctx.run(["prek", "autoupdate"], title="prek autoupdate")
 
 
 @duty
