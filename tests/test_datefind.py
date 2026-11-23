@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -250,7 +251,9 @@ def test_find_dates_in_file(debug):
         ("2001-2-01", "year", [datetime(2001, 2, 1, tzinfo=ZoneInfo("UTC"))]),
     ],
 )
-def test_first_number(text: str, first: str, expected: list[datetime], debug) -> None:
+def test_first_number(
+    text: str, first: Literal["month", "day", "year"], expected: list[datetime], debug
+) -> None:
     """Verify extracting dates from text returns expected datetime objects."""
     # Given: Text containing dates and expected datetime
     # When: Finding dates in the text
