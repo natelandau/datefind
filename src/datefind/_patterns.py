@@ -108,6 +108,19 @@ YYYY_MONTH = rf"""
     {MONTH_NAME_GROUP}
     {END}
 """
+# A number after the month belongs to a month-first date ("5 January 3, 2024") or a
+# year, so the day-first reading stops before it. "may" is also a verb ("option 2 may
+# work"), so a bare number before it needs an ordinal or "the" / "of" to count as a day.
+DD_MONTH = rf"""
+    {START}
+    (?:
+        {DAY_OR_ORDINAL_DAY_GROUP}{MONTH_DAY_SEPARATOR}(?!may(?!\p{{L}})){MONTH_NAME_GROUP}
+        |(?:(?P<day>{DD_FLEXIBLE})(?:{DIGIT_SUFFIXES})|{ORDINAL_DAY_GROUP})
+            {MONTH_DAY_SEPARATOR}(?P<month_name>may)
+        |(?P<day>{DD_FLEXIBLE}){SEP_CHARS_REGEX}(?:the|of){SEP_CHARS_REGEX}(?P<month_name>may)
+    )
+    (?!\p{{L}}|{SEP_CHARS_REGEX}\d)
+"""
 MONTH_DD = rf"""
     {MONTH_NAME_GROUP}
     {MONTH_DAY_SEPARATOR}
@@ -357,6 +370,7 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
         DatePattern(name="month_day_year", regex=MONTH_DD_YYYY, resolver=resolve_calendar_date),
         DatePattern(name="year_month_day", regex=YYYY_MONTH_DD, resolver=resolve_calendar_date),
         DatePattern(name="month_day", regex=MONTH_DD, resolver=resolve_calendar_date),
+        DatePattern(name="day_month", regex=DD_MONTH, resolver=resolve_calendar_date),
         DatePattern(name="year_month", regex=YYYY_MONTH, resolver=resolve_calendar_date),
         DatePattern(name="month_year", regex=MONTH_YYYY, resolver=resolve_calendar_date),
         *(
