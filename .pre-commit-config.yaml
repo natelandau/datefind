@@ -91,7 +91,7 @@ repos:
     hooks:
       - id: ty
         name: ty
-        entry: ty check
+        entry: uv run ty check
         language: system
         pass_filenames: false
         files: |
@@ -104,7 +104,7 @@ repos:
 
       - id: pytest
         name: pytest
-        entry: pytest -c pyproject.toml
+        entry: uv run pytest -c pyproject.toml
         language: system
         pass_filenames: false
         files: |
