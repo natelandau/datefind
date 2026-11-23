@@ -48,7 +48,7 @@ for date in find_dates(string, tz="America/New_York"):
 
 ### find_dates
 
-The `find_dates()` function is the main entry point for the datefind package. It takes a string of text and returns a generator of Date objects.
+The `find_dates()` function is the main entry point for the datefind package. It takes a string of text and returns a generator of `FoundDate` objects.
 
 **Arguments**
 

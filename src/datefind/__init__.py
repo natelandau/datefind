@@ -6,14 +6,16 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from tzlocal import get_localzone
 
-from datefind.constants import FirstNumber
-from datefind.datefind import DateFind, FoundDate
+from datefind._fragments import FirstNumber
+from datefind._search import FoundDate, search_dates
+
+__all__ = ["FoundDate", "find_dates"]
 
 
 def find_dates(
     text: str, first: Literal["month", "day", "year"] = "month", tz: str = ""
 ) -> Generator[FoundDate, None, None]:
-    """Search text for dates and return them as Date objects.
+    """Search text for dates and return them as FoundDate objects.
 
     Parse the input text to locate and extract dates in various formats. When ambiguous dates are encountered (e.g. 01/02/03), use the `first` parameter to determine the order of month/day/year. Convert all dates to the specified timezone.
 
@@ -23,7 +25,7 @@ def find_dates(
         tz (str): The timezone name (e.g. "America/New_York") to localize dates. Uses system timezone if empty. Defaults to ""
 
     Returns:
-        Generator[FoundDate, None, None]: A generator yielding Date objects for each date found in the text
+        Generator[FoundDate, None, None]: A generator yielding FoundDate objects for each date found in the text
 
     Raises:
         ValueError: If an invalid first parameter or timezone is provided
@@ -31,14 +33,13 @@ def find_dates(
     try:
         first_number = FirstNumber[first.upper()]
     except KeyError as e:
-        msg = f"Invalid first number: {first}"
+        msg = f"Invalid first number: {first}, expected 'month', 'day', or 'year'"
         raise ValueError(msg) from e
 
     try:
         timezone = ZoneInfo(tz) if tz else get_localzone()
     except ZoneInfoNotFoundError as e:
-        msg = f"Invalid timezone: {tz}"
+        msg = f"Invalid timezone: {tz}, expected an IANA timezone name such as 'America/New_York'"
         raise ValueError(msg) from e
 
-    datefind = DateFind(text=text, tz=timezone, first_number=first_number)
-    return datefind.find_dates()
+    return search_dates(text=text, tz=timezone, first=first_number)
