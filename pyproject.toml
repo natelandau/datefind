@@ -1,24 +1,35 @@
 [project]
     authors = [{ name = "Nate Landau", email = "github@natenate.org" }]
     classifiers = [
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3 :: Only",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
         "Programming Language :: Python :: 3.14",
         "Programming Language :: Python :: 3.15",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Topic :: Text Processing",
+        "Typing :: Typed",
     ]
     dependencies = ["regex>=2026.9.29", "tzlocal>=5.4.4,<6.0.0"]
     description = "A python module for locating dates within text."
+    keywords = ["date", "datetime", "date extraction", "date parsing", "natural language", "text"]
     license = "MIT"
     license-files = ["LICENSE"]
     name = "datefind"
     readme = "README.md"
-    requires-python = ">=3.11, <3.16"
+    requires-python = ">=3.11"
     version = "0.6.0"
 
     [project.urls]
+        Changelog  = "https://github.com/natelandau/datefind/blob/main/CHANGELOG.md"
         Homepage   = "https://github.com/natelandau/datefind"
+        Issues     = "https://github.com/natelandau/datefind/issues"
         Repository = "https://github.com/natelandau/datefind"
 
 [dependency-groups]
