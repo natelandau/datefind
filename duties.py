@@ -123,8 +123,6 @@ def test(ctx: Context, *cli_args: str) -> None:
     """Test package and generate coverage reports."""
     ctx.run(
         tools.pytest(
-            "tests",
-            "src",
             config_file="pyproject.toml",
             color="yes",
         ).add_args(

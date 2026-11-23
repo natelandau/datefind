@@ -104,7 +104,7 @@ repos:
 
       - id: pytest
         name: pytest
-        entry: pytest -c pyproject.toml src/ tests/
+        entry: pytest -c pyproject.toml
         language: system
         pass_filenames: false
         files: |

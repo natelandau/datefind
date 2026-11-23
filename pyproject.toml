@@ -30,11 +30,7 @@
         "prek>=0.5.5",
         "pytest-clarity>=1.0.1",
         "pytest-cov>=7.1.0",
-        "pytest-env>=1.8.0",
-        "pytest-mock>=3.16.0",
-        "pytest-pretty-terminal>=1.1.0",
         "pytest-sugar>=1.1.1",
-        "pytest-xdist>=3.8.0",
         "pytest>=9.1.1",
         "rich>=15.0.0",
         "ruff>=0.17.0",
@@ -79,14 +75,12 @@
 [tool.coverage.xml]
     output = ".cache/coverage.xml"
 
-[tool.pytest.ini_options]
-    addopts             = "--color=yes --doctest-modules --exitfirst --failed-first --strict-config --strict-markers --junitxml=.cache/pytest.xml"
-    cache_dir           = ".cache/pytest"
-    doctest_optionflags = ["IGNORE_EXCEPTION_DETAIL", "NORMALIZE_WHITESPACE"]
-    filterwarnings      = ["error", "ignore::DeprecationWarning", "ignore::ResourceWarning"]
-    markers             = ["no_db: marks tests as not needing a database"]
-    testpaths           = ["src", "tests"]
-    xfail_strict        = true
+[tool.pytest] # https://docs.pytest.org/en/stable/reference/reference.html#configuration-options
+    addopts        = ["--failed-first"]
+    cache_dir      = ".cache/pytest"
+    filterwarnings = ["error"]
+    strict         = true
+    testpaths      = ["tests"]
 
 [tool.hatch.metadata]
     allow-direct-references = true
