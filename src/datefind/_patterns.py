@@ -282,12 +282,12 @@ def _numeric_pattern(order: list[str]) -> str:
 
 @dataclass(frozen=True, slots=True)
 class DatePattern:
-    """One kind of date text and the resolver that turns its match into a datetime.
+    """One kind of date text and the resolver that turns its match into a date.
 
     Attributes:
         name: A unique identifier, also used to name the pattern's group in the combined regex.
         regex: The regex fragment that matches the date text. For a member of a family, only the part that differs between members.
-        resolver: The function that turns the match's named groups into a datetime.
+        resolver: The function that turns the match's named groups into a date.
         family: The shared pattern this entry belongs to, if any. Consecutive members of a family compile into one shared pattern.
     """
 
