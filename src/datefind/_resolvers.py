@@ -1,10 +1,10 @@
-"""Turn the named groups of one date-pattern match into a datetime.
+"""Turn the named groups of one date-pattern match into a calendar date.
 
-Each resolver handles one kind of match and receives the reference time instead of reading the clock, so callers control what "now" means.
+Each resolver handles one kind of match and receives the reference day instead of reading the clock, so callers control what "today" means. Resolvers work on dates, not datetimes, so no result can carry a time of day.
 """
 
 from collections.abc import Mapping
-from datetime import datetime, timedelta
+from datetime import date, timedelta
 from typing import Literal, Protocol, TypeAlias
 
 import regex as re
@@ -17,9 +17,9 @@ Direction: TypeAlias = Literal[-1, 1]
 
 
 class Resolver(Protocol):
-    """Turn the named groups of one pattern's match into a datetime, or None when the text is not a real date."""
+    """Turn the named groups of one pattern's match into a date, or None when the text is not a real date."""
 
-    def __call__(self, *, groups: MatchGroups, now: datetime) -> datetime | None: ...
+    def __call__(self, *, groups: MatchGroups, today: date) -> date | None: ...
 
 
 # Keyed by the first three letters, which identify every weekday name and abbreviation
@@ -79,44 +79,44 @@ def _lookup_word(table: Mapping[str, int], text: str, prefix_length: int | None 
     return table[key]
 
 
-def _offset_months(now: datetime, months: int) -> datetime:
-    """Offset a datetime by whole months, carrying across year boundaries.
+def _offset_months(today: date, months: int) -> date:
+    """Offset a date by whole months, carrying across year boundaries.
 
     Args:
-        now: The datetime to offset.
+        today: The date to offset.
         months: The number of months to offset by. Positive shifts forward, negative backward.
 
     Returns:
-        datetime: The offset datetime.
+        date: The offset date.
 
     Raises:
         ValueError: If the target day does not exist in the target month, such as January 31 plus one month.
     """
-    year_offset, month_zero = divmod(now.month - 1 + months, 12)
-    return now.replace(year=now.year + year_offset, month=month_zero + 1)
+    year_offset, month_zero = divmod(today.month - 1 + months, 12)
+    return today.replace(year=today.year + year_offset, month=month_zero + 1)
 
 
-def _shift(now: datetime, unit: TimeUnit, amount: int) -> datetime | None:
-    """Offset a datetime by a count of one time unit, or give None when the target is not a real date.
+def _shift(today: date, unit: TimeUnit, amount: int) -> date | None:
+    """Offset a date by a count of one time unit, or give None when the target is not a real date.
 
     Args:
-        now: The datetime to offset.
+        today: The date to offset.
         unit: The time unit of the offset.
         amount: The number of units to offset by. Positive shifts forward, negative backward.
 
     Returns:
-        datetime | None: The offset datetime, or None if the target date does not exist or is out of range.
+        date | None: The offset date, or None if the target date does not exist or is out of range.
     """
     try:
         match unit:
             case "day":
-                return now + timedelta(days=amount)
+                return today + timedelta(days=amount)
             case "week":
-                return now + timedelta(weeks=amount)
+                return today + timedelta(weeks=amount)
             case "month":
-                return _offset_months(now=now, months=amount)
+                return _offset_months(today=today, months=amount)
             case "year":
-                return now.replace(year=now.year + amount)
+                return today.replace(year=today.year + amount)
     except (ValueError, OverflowError):
         return None
 
@@ -167,53 +167,52 @@ def _day_number(groups: MatchGroups) -> int | None:
     return None
 
 
-def resolve_calendar_date(groups: MatchGroups, now: datetime) -> datetime | None:
-    """Build an explicit calendar date, filling a missing part from the reference time.
+def resolve_calendar_date(groups: MatchGroups, today: date) -> date | None:
+    """Build an explicit calendar date, filling a missing part from the reference day.
 
-    A missing day becomes the first of the month. A missing month or year comes from `now`.
+    A missing day becomes the first of the month. A missing month or year comes from `today`.
 
     Args:
         groups: The named groups of the match.
-        now: The reference time, which also supplies the timezone.
+        today: The reference day.
 
     Returns:
-        datetime | None: The date at midnight, or None if the parts do not form a real date, such as February 30.
+        date | None: The date, or None if the parts do not form a real date, such as February 30.
     """
     try:
-        return datetime(
-            year=_year_number(groups) or now.year,
-            month=_month_number(groups) or now.month,
+        return date(
+            year=_year_number(groups) or today.year,
+            month=_month_number(groups) or today.month,
             day=_day_number(groups) or 1,
-            tzinfo=now.tzinfo,
         )
     except ValueError:
         return None
 
 
-def resolve_weekday(groups: MatchGroups, now: datetime) -> datetime:
+def resolve_weekday(groups: MatchGroups, today: date) -> date:
     """Resolve a weekday, with or without a `last`, `this`, or `next` modifier.
 
     `last` gives the prior occurrence, never today. `this` gives the next occurrence within 0-6 days, so today counts. `next`, and no modifier, give the next occurrence, never today.
 
     Args:
         groups: The named groups of the match.
-        now: The reference time.
+        today: The reference day.
 
     Returns:
-        datetime: The resolved datetime.
+        date: The resolved date.
     """
     weekday = _required_group(groups=groups, name="weekday")
     target = _lookup_word(table=_WEEKDAY_NUMBERS, text=weekday, prefix_length=3)
-    current = now.weekday()
+    current = today.weekday()
     modifier = groups.get("weekday_modifier")
     direction = _lookup_word(table=PERIOD_MODIFIER_OFFSETS, text=modifier) if modifier else 1
 
     if direction < 0:
         # `or 7` forces a full-week jump when target == current
-        return now - timedelta(days=(current - target) % 7 or 7)
+        return today - timedelta(days=(current - target) % 7 or 7)
     if direction == 0:
-        return now + timedelta(days=(target - current) % 7)
-    return now + timedelta(days=(target - current) % 7 or 7)
+        return today + timedelta(days=(target - current) % 7)
+    return today + timedelta(days=(target - current) % 7 or 7)
 
 
 def relative_word_resolver(unit: TimeUnit) -> Resolver:
@@ -223,7 +222,7 @@ def relative_word_resolver(unit: TimeUnit) -> Resolver:
         unit: The time unit the words of this pattern refer to.
 
     Returns:
-        Resolver: A resolver that offsets the reference time by the word's amount of `unit`.
+        Resolver: A resolver that offsets the reference day by the word's amount of `unit`.
     """
     base_offsets = (
         _DAY_WORD_OFFSETS
@@ -233,9 +232,9 @@ def relative_word_resolver(unit: TimeUnit) -> Resolver:
     # Possessive and plural forms ("today's", "last weeks") normalize to a trailing "s"
     offsets = base_offsets | {f"{word}s": amount for word, amount in base_offsets.items()}
 
-    def resolve(groups: MatchGroups, now: datetime) -> datetime | None:
+    def resolve(groups: MatchGroups, today: date) -> date | None:
         word = _required_group(groups=groups, name="relative_word")
-        return _shift(now=now, unit=unit, amount=_lookup_word(table=offsets, text=word))
+        return _shift(today=today, unit=unit, amount=_lookup_word(table=offsets, text=word))
 
     return resolve
 
@@ -248,15 +247,15 @@ def relative_count_resolver(unit: TimeUnit, direction: Direction) -> Resolver:
         direction: -1 for past offsets ("ago"), 1 for future offsets ("in", "from now").
 
     Returns:
-        Resolver: A resolver that offsets the reference time by the matched count of `unit`.
+        Resolver: A resolver that offsets the reference day by the matched count of `unit`.
     """
 
-    def resolve(groups: MatchGroups, now: datetime) -> datetime | None:
+    def resolve(groups: MatchGroups, today: date) -> date | None:
         try:
             count = int(_required_group(groups=groups, name="rel_count"))
         except ValueError:
             # Counts past Python's integer string conversion limit
             return None
-        return _shift(now=now, unit=unit, amount=count * direction)
+        return _shift(today=today, unit=unit, amount=count * direction)
 
     return resolve

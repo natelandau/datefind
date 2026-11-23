@@ -1,6 +1,7 @@
 """Tests for datefind."""
 
-from datetime import datetime, timedelta
+import re
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -13,14 +14,54 @@ from datefind import find_dates
 fixture_file = Path(__file__).parent / "fixture.txt"
 
 
-def test_raise_error_on_invalid_timezone():
+@pytest.mark.parametrize("invalid_tz", ["America/California", "/etc/localtime", "Foo/../Bar"])
+def test_raise_error_on_invalid_timezone(invalid_tz: str) -> None:
     """Verify ValueError raised when invalid timezone provided."""
-    # Given: An invalid timezone string
-    invalid_tz = "America/California"
-
-    # When/Then: find_dates raises ValueError
-    with pytest.raises(ValueError, match="Invalid timezone: America/California"):
+    # When/Then: find_dates raises ValueError naming the timezone
+    with pytest.raises(ValueError, match=f"Invalid timezone: {re.escape(invalid_tz)}"):
         find_dates("Hello, world! Today is 2024-01-01.", tz=invalid_tz)
+
+
+@pytest.mark.parametrize(
+    ("text", "now", "tz", "expected"),
+    [
+        # A date resolves relative words against that day
+        ("tomorrow", date(2024, 3, 1), "UTC", datetime(2024, 3, 2, tzinfo=ZoneInfo("UTC"))),
+        ("next friday", date(2024, 3, 1), "UTC", datetime(2024, 3, 8, tzinfo=ZoneInfo("UTC"))),
+        # An aware datetime is converted to the output timezone, then cut to midnight
+        (
+            "today",
+            datetime(2024, 3, 1, 23, 30, tzinfo=ZoneInfo("UTC")),
+            "Asia/Tokyo",
+            datetime(2024, 3, 2, tzinfo=ZoneInfo("Asia/Tokyo")),
+        ),
+        # A naive datetime is read as a wall-clock time in the output timezone
+        (
+            "3 days ago",
+            datetime(2024, 3, 1, 23, 30),
+            "Asia/Tokyo",
+            datetime(2024, 2, 27, tzinfo=ZoneInfo("Asia/Tokyo")),
+        ),
+        # The timezone can be a tzinfo object instead of a name
+        (
+            "yesterday",
+            date(2024, 3, 1),
+            ZoneInfo("Asia/Tokyo"),
+            datetime(2024, 2, 29, tzinfo=ZoneInfo("Asia/Tokyo")),
+        ),
+        ("2024-01-12", date(2024, 3, 1), UTC, datetime(2024, 1, 12, tzinfo=UTC)),
+    ],
+)
+def test_find_dates_with_reference_date(
+    text: str, now: date | datetime, tz: str | tzinfo, expected: datetime, debug
+) -> None:
+    """Verify dates resolve against the caller's reference date, at midnight in the output timezone."""
+    # When: finding dates with an explicit reference date
+    dates = list(find_dates(text, tz=tz, now=now))
+
+    # Then: the single date matches exactly, including time of day and timezone
+    assert [found.datetime for found in dates] == [expected]
+    assert dates[0].datetime.tzinfo == expected.tzinfo
 
 
 @pytest.mark.parametrize(
@@ -185,10 +226,10 @@ def test_find_dates(text, expected, debug):
 
     # Then: Each found date matches expected datetime
     assert len(dates) == len(expected)
-    for i, date in enumerate(dates):
-        assert date.datetime.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
-        assert date.match == text
-        assert date.span == (0, len(text))
+    for i, found in enumerate(dates):
+        assert found.datetime.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
+        assert found.match == text
+        assert found.span == (0, len(text))
 
 
 @freeze_time("2024-03-01")
@@ -243,8 +284,8 @@ def test_find_dates_in_file(debug):
 
     # Then: Each found date matches expected datetime
     assert len(dates) == len(expected)
-    for i, date in enumerate(dates):
-        assert date.datetime.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
+    for i, found in enumerate(dates):
+        assert found.datetime.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
 
 
 @pytest.mark.parametrize(
@@ -279,8 +320,8 @@ def test_first_number(
 
     # Then: Each found date matches expected datetime
     assert len(dates) == len(expected)
-    for i, date in enumerate(dates):
-        assert date.datetime.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
+    for i, found in enumerate(dates):
+        assert found.datetime.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
 
 
 def test_date_object(debug):

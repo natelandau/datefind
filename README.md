@@ -54,11 +54,25 @@ The `find_dates()` function is the main entry point for the datefind package. It
 
 - `text` - The text to search for dates.
 - `first` - The first number to find in ambiguous dates. (one of `month`, `day`, `year`) Default is `month`
-- `tz` - The timezone to use. Defaults to the local timezone.
+- `tz` - The timezone to use, as a name such as `America/New_York` or a `tzinfo` object such as `ZoneInfo("Europe/Paris")`. Defaults to the local timezone.
+- `now` - The date that relative dates such as `tomorrow` or `3 days ago` resolve against, as a `date` or a `datetime`. An aware `datetime` is converted to `tz`. A naive `datetime` is read as a time in `tz`. Defaults to the current time.
+
+Pass `now` to get the same results on every run, for example in tests:
+
+```python
+from datetime import date
+
+from datefind import find_dates
+
+dates = list(find_dates("call me tomorrow", tz="UTC", now=date(2024, 3, 1)))
+
+>>> dates[0].datetime
+datetime.datetime(2024, 3, 2, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='UTC'))
+```
 
 For each date found, a `FoundDate` object is returned. The FoundDate object has the following properties:
 
-- `datetime` - The datetime object.
+- `datetime` - The datetime object, at midnight in `tz`.
 - `match` - The matched portion of the text.
 - `span` - The span of the matched text in the original text.
 
