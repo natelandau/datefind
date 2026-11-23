@@ -3,7 +3,7 @@
 Table order is alternation order in the combined regex, which decides the winner when two patterns can match at the same position.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import cache
 from itertools import groupby
@@ -30,6 +30,8 @@ from datefind._fragments import (
     YESTERDAY,
     YYYY,
     YYYY_FLEXIBLE,
+    YYYY_NARROW,
+    YYYY_NARROW_FLEXIBLE,
     FirstNumber,
 )
 from datefind._resolvers import (
@@ -51,12 +53,17 @@ MONTH_FLEXIBLE_GROUP = rf"(?P<month>{MM_FLEXIBLE})"
 MONTH_NAME_GROUP = f"(?P<month_name>{MONTH})"
 YEAR_GROUP = rf"(?P<year>{YYYY})"
 YEAR_FLEXIBLE_GROUP = rf"(?P<year>{YYYY_FLEXIBLE})"
+YEAR_NARROW_GROUP = rf"(?P<year>{YYYY_NARROW})"
+YEAR_NARROW_FLEXIBLE_GROUP = rf"(?P<year>{YYYY_NARROW_FLEXIBLE})"
 # 2-digit year alternative requires no preceding digit. Prevents MONTH_DD_YYYY from
 # splitting a 4-digit year like "2025" into day=20 + 2-digit year=25.
 YEAR_FLEXIBLE_NO_PREV_DIGIT_GROUP = rf"(?P<year>{YYYY}|(?<!\d)\d\d)"
 
 END = rf"(?![0-9]|{SEP_CLASS}[0-9])"
 REQUIRED_SEPARATOR = rf"{SEP_CLASS}+?"
+# A separator with / - or . marks a numeric year clearly enough for years outside 1900 to 2099.
+# Spaces and commas alone also divide counts in prose, as in "10 2500 sold".
+YEAR_MARKING_SEPARATOR = rf"{SEP_CHARS_REGEX}[-/.]{SEP_CHARS_REGEX}"
 MONTH_DAY_SEPARATOR = rf"{SEP_CHARS_REGEX}(?:the|of)?{SEP_CHARS_REGEX}"
 PERIOD_MODIFIER = "|".join(PERIOD_MODIFIER_OFFSETS)
 # [Qq] excluded so that a digit following an invalid quarter (e.g. "Q5 2024") cannot
@@ -82,13 +89,16 @@ DD_MONTH_YYYY = rf"""
     {END}
 """
 # Month-first patterns skip START, which would reject a month name that follows a
-# number, as in "item 5 January 3, 2024"
+# number, as in "item 5 January 3, 2024". A year glued to the day ("March 31999") is
+# only a position in a digit run, so it takes the narrow compact range.
 MONTH_DD_YYYY = rf"""
     {MONTH_NAME_GROUP}
     {MONTH_DAY_SEPARATOR}
     {DAY_OR_ORDINAL_DAY_GROUP}
-    {MONTH_DAY_SEPARATOR}
-    {YEAR_FLEXIBLE_NO_PREV_DIGIT_GROUP}
+    (?:
+        {MONTH_DAY_SEPARATOR}(?<!\d){YEAR_FLEXIBLE_NO_PREV_DIGIT_GROUP}
+        |{YEAR_NARROW_GROUP}
+    )
     {END}
 """
 YYYY_MONTH = rf"""
@@ -110,25 +120,14 @@ MONTH_YYYY = rf"""
     {YEAR_GROUP}
     {END}
 """
-YYYY_MM = rf"""
-    {START}
-    {YEAR_GROUP}
-    {SEP_CHARS_REGEX}
-    {MONTH_GROUP}
-    {END}
-"""
-MM_YYYY = rf"""
-    {START}
-    {MONTH_GROUP}
-    {MONTH_DAY_SEPARATOR}
-    {YEAR_GROUP}
-    {END}
-"""
+# A year glued to the quarter digit ("Q31500") takes the narrow year range, as in MONTH_DD_YYYY
 QUARTER_YYYY = rf"""
     {START}
     (?P<quarter>{QUARTER})
-    {SEP_CHARS_REGEX}
-    {YEAR_GROUP}
+    (?:
+        {SEP_CHARS_REGEX}(?<!\d){YEAR_GROUP}
+        |{YEAR_NARROW_GROUP}
+    )
     {END}
 """
 YYYY_QUARTER = rf"""
@@ -261,23 +260,60 @@ _FLEXIBLE_PARTS: dict[str, str] = {
     "month": MONTH_FLEXIBLE_GROUP,
     "day": DAY_FLEXIBLE_GROUP,
 }
+# A year-first date needs a four-digit year, so a leading two-digit run is never read as the year
+_YEAR_FIRST_FLEXIBLE_PARTS: dict[str, str] = _FLEXIBLE_PARTS | {"year": YEAR_GROUP}
 
 
-def _numeric_pattern(order: list[str]) -> str:
+def _numeric_pattern(
+    order: Sequence[str], parts: dict[str, str], narrow_year: str, *, include_compact: bool
+) -> str:
     """Join numeric date parts in the given order, either all adjacent or all separated.
 
-    Mixing adjacent and separated parts is rejected so a run like "3, 2024" is not split into 3/20/24.
+    Mixing adjacent and separated parts is rejected so a run like "3, 2024" is not split into 3/20/24. Parts divided by / - or . take the year from `parts`; a digit run, or parts divided only by other separators such as spaces, take `narrow_year`.
 
     Args:
-        order: The group fragments for the date parts, in text order.
+        order: The date part names ("year", "month", "day"), in text order.
+        parts: The group fragment for each part.
+        narrow_year: The year group for a digit run or for parts divided only by weak separators.
+        include_compact: Whether to match a digit run with no separators.
 
     Returns:
         str: The regex for the numeric date.
     """
-    first, *rest = order
-    compact = "".join(rest)
-    separated = "".join(f"{REQUIRED_SEPARATOR}{part}" for part in rest)
-    return f"{START}{first}(?:{compact}|{separated}){END}"
+    narrow_parts = parts | {"year": narrow_year}
+
+    def join(separator: str, fragments: dict[str, str]) -> str:
+        return separator.join(fragments[part] for part in order)
+
+    alternatives = [
+        *([join("", narrow_parts)] if include_compact else []),
+        join(YEAR_MARKING_SEPARATOR, parts),
+        join(REQUIRED_SEPARATOR, narrow_parts),
+    ]
+    return f"{START}(?:{'|'.join(alternatives)}){END}"
+
+
+def _year_month_pattern(*, year_first: bool, include_compact: bool) -> str:
+    """Match a numeric month and year, in either order, such as 2024-12 or 12/2024.
+
+    The year is always from 1900 to 2099: without a day, two numbers divided by / - or . are as likely to be a decimal, a price, or a range ("10-1500") as a date.
+
+    Args:
+        year_first: Whether the year comes before the month.
+        include_compact: Whether to match a digit run with no separators, such as 202412.
+
+    Returns:
+        str: The regex for the month and year.
+    """
+    # (?!\d) requires at least one separator in the separated form
+    if year_first:
+        compact = f"{YEAR_NARROW_GROUP}{MONTH_GROUP}"
+        separated = rf"{YEAR_NARROW_GROUP}(?!\d){SEP_CHARS_REGEX}{MONTH_GROUP}"
+    else:
+        compact = f"{MONTH_GROUP}{YEAR_NARROW_GROUP}"
+        separated = rf"{MONTH_GROUP}(?!\d){MONTH_DAY_SEPARATOR}{YEAR_NARROW_GROUP}"
+    alternatives = [compact, separated] if include_compact else [separated]
+    return f"{START}(?:{'|'.join(alternatives)}){END}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,17 +339,18 @@ class DatePattern:
 
 
 @cache
-def pattern_table(first: FirstNumber) -> tuple[DatePattern, ...]:
+def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DatePattern, ...]:
     """Build the ordered pattern table for one reading of ambiguous numeric dates.
 
     Args:
         first: Which part comes first in ambiguous numeric dates such as 01/02/03.
+        short_digit_dates: Whether runs of 4 to 7 digits with no separators can match. 8-digit runs always can.
 
     Returns:
         tuple[DatePattern, ...]: The patterns in alternation order.
     """
     order = _PART_ORDER[first]
-    month_and_day = [part for part in order if part != "year"]
+    year_first = ["year", *(part for part in order if part != "year")]
 
     return (
         DatePattern(name="day_month_year", regex=DD_MONTH_YYYY, resolver=resolve_calendar_date),
@@ -346,24 +383,52 @@ def pattern_table(first: FirstNumber) -> tuple[DatePattern, ...]:
         DatePattern(name="modified_weekday", regex=MODIFIED_WEEKDAY, resolver=resolve_weekday),
         DatePattern(
             name="numeric_year_first",
-            regex=_numeric_pattern([YEAR_GROUP, *(_STRICT_PARTS[p] for p in month_and_day)]),
+            regex=_numeric_pattern(
+                order=year_first,
+                parts=_STRICT_PARTS,
+                narrow_year=YEAR_NARROW_GROUP,
+                include_compact=True,
+            ),
             resolver=resolve_calendar_date,
         ),
         DatePattern(
             name="numeric_strict",
-            regex=_numeric_pattern([_STRICT_PARTS[p] for p in order]),
+            regex=_numeric_pattern(
+                order=order,
+                parts=_STRICT_PARTS,
+                narrow_year=YEAR_NARROW_GROUP,
+                include_compact=True,
+            ),
             resolver=resolve_calendar_date,
         ),
-        DatePattern(name="numeric_year_month", regex=YYYY_MM, resolver=resolve_calendar_date),
-        DatePattern(name="numeric_month_year", regex=MM_YYYY, resolver=resolve_calendar_date),
+        DatePattern(
+            name="numeric_year_month",
+            regex=_year_month_pattern(year_first=True, include_compact=short_digit_dates),
+            resolver=resolve_calendar_date,
+        ),
+        DatePattern(
+            name="numeric_month_year",
+            regex=_year_month_pattern(year_first=False, include_compact=short_digit_dates),
+            resolver=resolve_calendar_date,
+        ),
         DatePattern(
             name="numeric_year_first_flexible",
-            regex=_numeric_pattern([YEAR_GROUP, *(_FLEXIBLE_PARTS[p] for p in month_and_day)]),
+            regex=_numeric_pattern(
+                order=year_first,
+                parts=_YEAR_FIRST_FLEXIBLE_PARTS,
+                narrow_year=YEAR_NARROW_GROUP,
+                include_compact=short_digit_dates,
+            ),
             resolver=resolve_calendar_date,
         ),
         DatePattern(
             name="numeric_flexible",
-            regex=_numeric_pattern([_FLEXIBLE_PARTS[p] for p in order]),
+            regex=_numeric_pattern(
+                order=order,
+                parts=_FLEXIBLE_PARTS,
+                narrow_year=YEAR_NARROW_FLEXIBLE_GROUP,
+                include_compact=short_digit_dates,
+            ),
             resolver=resolve_calendar_date,
         ),
         DatePattern(name="bare_weekday", regex=BARE_WEEKDAY, resolver=resolve_weekday),
@@ -390,16 +455,19 @@ def _alternatives(table: tuple[DatePattern, ...]) -> list[str]:
 
 
 @cache
-def compile_date_regex(first: FirstNumber) -> re.Pattern[str]:
+def compile_date_regex(first: FirstNumber, *, short_digit_dates: bool) -> re.Pattern[str]:
     """Compile the pattern table into one regex, each pattern in its own named group.
 
     Args:
         first: Which part comes first in ambiguous numeric dates such as 01/02/03.
+        short_digit_dates: Whether runs of 4 to 7 digits with no separators can match. 8-digit runs always can.
 
     Returns:
         re.Pattern[str]: The combined regex, case-insensitive and verbose.
     """
     return re.compile(
-        pattern="|".join(_alternatives(pattern_table(first))),
+        pattern="|".join(
+            _alternatives(pattern_table(first=first, short_digit_dates=short_digit_dates))
+        ),
         flags=re.IGNORECASE | re.VERBOSE | re.MULTILINE | re.UNICODE | re.DOTALL,
     )

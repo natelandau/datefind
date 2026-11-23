@@ -9,7 +9,7 @@ from typing import Literal, Protocol, TypeAlias
 
 import regex as re
 
-from datefind._fragments import CENTURY, ORDINAL_DAY_NUMBERS, PERIOD_MODIFIER_OFFSETS, SEP_CLASS
+from datefind._fragments import ORDINAL_DAY_NUMBERS, PERIOD_MODIFIER_OFFSETS, SEP_CLASS
 
 MatchGroups: TypeAlias = Mapping[str, str | None]
 TimeUnit: TypeAlias = Literal["day", "week", "month", "year"]
@@ -140,10 +140,34 @@ def _required_group(groups: MatchGroups, name: str) -> str:
     return value
 
 
-def _year_number(groups: MatchGroups) -> int | None:
-    """Read the year, expanding a two-digit year with the fixed century."""
+# A two-digit year lands within this many years of the reference year
+_TWO_DIGIT_YEAR_WINDOW = 50
+
+
+def expand_two_digit_year(two_digit_year: int, reference_year: int) -> int:
+    """Pick the century that puts a two-digit year within 50 years of the reference year, the rule dateutil uses.
+
+    Args:
+        two_digit_year: The year as written, from 0 to 99.
+        reference_year: The year of the reference day.
+
+    Returns:
+        int: The four-digit year.
+    """
+    year = reference_year - reference_year % 100 + two_digit_year
+    if year >= reference_year + _TWO_DIGIT_YEAR_WINDOW:
+        return year - 100
+    if year < reference_year - _TWO_DIGIT_YEAR_WINDOW:
+        return year + 100
+    return year
+
+
+def _year_number(groups: MatchGroups, today: date) -> int | None:
+    """Read the year, giving a two-digit year the century closest to `today`."""
     if year := groups.get("year"):
-        return int(f"{CENTURY}{year}") if len(year) == 2 else int(year)  # noqa: PLR2004
+        if len(year) == 2:  # noqa: PLR2004
+            return expand_two_digit_year(two_digit_year=int(year), reference_year=today.year)
+        return int(year)
     return None
 
 
@@ -181,7 +205,7 @@ def resolve_calendar_date(groups: MatchGroups, today: date) -> date | None:
     """
     try:
         return date(
-            year=_year_number(groups) or today.year,
+            year=_year_number(groups=groups, today=today) or today.year,
             month=_month_number(groups) or today.month,
             day=_day_number(groups) or 1,
         )

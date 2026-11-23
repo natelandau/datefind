@@ -23,6 +23,52 @@ def test_raise_error_on_invalid_timezone(invalid_tz: str) -> None:
 
 
 @pytest.mark.parametrize(
+    ("text", "first", "expected"),
+    [
+        ("9819", "month", date(2019, 9, 8)),
+        ("2024112", "month", date(2024, 11, 2)),
+        ("2111999", "month", date(1999, 2, 11)),
+        ("120524", "month", date(2024, 12, 5)),
+        ("120524", "day", date(2024, 5, 12)),
+        ("202412", "month", date(2024, 12, 1)),
+    ],
+)
+@freeze_time("2024-03-01")
+def test_short_digit_dates(
+    text: str, first: Literal["month", "day", "year"], expected: date, debug
+) -> None:
+    """Verify runs of 4 to 7 digits read as dates when the caller opts in."""
+    # When: finding dates with short digit runs enabled
+    dates = list(find_dates(text, first=first, tz="UTC", short_digit_dates=True))
+
+    # Then: the whole run is one date
+    assert [found.datetime.date() for found in dates] == [expected]
+    assert dates[0].match == text
+    assert dates[0].span == (0, len(text))
+
+
+@pytest.mark.parametrize(
+    ("text", "now", "expected"),
+    [
+        ("born 12/25/85", date(2026, 11, 23), date(1985, 12, 25)),
+        ("march 3rd 75", date(2026, 11, 23), date(2075, 3, 3)),
+        ("march 3rd 76", date(2026, 11, 23), date(1976, 3, 3)),
+        ("1/2/00", date(2026, 11, 23), date(2000, 1, 2)),
+        # The window follows the reference date, not the clock
+        ("march 3rd 39", date(1990, 1, 1), date(2039, 3, 3)),
+        ("march 3rd 40", date(1990, 1, 1), date(1940, 3, 3)),
+    ],
+)
+def test_two_digit_year_century(text: str, now: date, expected: date, debug) -> None:
+    """Verify a two-digit year takes the century that keeps it within 50 years of the reference date."""
+    # When: finding dates with a reference date
+    dates = list(find_dates(text, tz="UTC", now=now))
+
+    # Then: the year lands in the expected century
+    assert [found.datetime.date() for found in dates] == [expected]
+
+
+@pytest.mark.parametrize(
     ("text", "now", "tz", "expected"),
     [
         # A date resolves relative words against that day
@@ -81,9 +127,53 @@ def test_find_dates_with_reference_date(
         ("20240112", [datetime(2024, 1, 12)]),
         ("2024-1-12", [datetime(2024, 1, 12)]),
         ("2024/1/12", [datetime(2024, 1, 12)]),
-        ("2024112", [datetime(2024, 11, 2)]),
+        ("2024112", []),
         ("12112022", [datetime(2022, 12, 11)]),
-        ("2111999", [datetime(1999, 2, 11)]),
+        ("2111999", []),
+        # Runs of 4 to 7 digits match only with short_digit_dates=True
+        ("9819", []),
+        ("1985", []),
+        ("120524", []),
+        ("202412", []),
+        ("order 120524 shipped", []),
+        # No part of a run longer than 8 digits matches
+        ("1234567890", []),
+        ("202405121", []),
+        # A separator or month name marks the year, so years 1000 to 2999 match
+        ("dec 31 1899", [datetime(1899, 12, 31)]),
+        ("12/25/1850", [datetime(1850, 12, 25)]),
+        ("1850-12-25", [datetime(1850, 12, 25)]),
+        ("March 1105", [datetime(1105, 3, 1)]),
+        ("Q2 1500", [datetime(1500, 4, 1)]),
+        ("2999-12-31", [datetime(2999, 12, 31)]),
+        ("12/25/0999", []),
+        ("3000-01-01", []),
+        ("call 555-1212", []),
+        # A year glued to the quarter needs a year from 1900 to 2099
+        ("Q31500", []),
+        ("Q32024", [datetime(2024, 7, 1)]),
+        # A day glued to the year after a month name needs a year from 1900 to 2099
+        ("March 31105", []),
+        ("jan 12500 units", []),
+        ("march 21500", []),
+        ("March 31999", [datetime(1999, 3, 3)]),
+        # In all-number dates, years outside 1900 to 2099 need a / - or . separator
+        ("10 2500 sold", []),
+        ("page 12, 1500 words", []),
+        ("12 25 1850", []),
+        ("1850 12 25", []),
+        ("12 . 25 . 1850", [datetime(1850, 12, 25)]),
+        # A numeric month and year without a day needs a year from 1900 to 2099
+        ("12/1500", []),
+        ("1850.12", []),
+        ("price 1500.05", []),
+        ("lat 10.1234", []),
+        ("pages 10-1500", []),
+        # A three-letter month abbreviation inside a longer word is not a month
+        ("grammar 1500 words", []),
+        ("2500 Market Street", []),
+        ("1500 Mayfield Rd", []),
+        ("Kumar 1500", []),
         ("2022-12", [datetime(2022, 12, 1)]),
         ("12 2022", [datetime(2022, 12, 1)]),
         ("sep. 4", [datetime(2024, 9, 4)]),
@@ -107,7 +197,7 @@ def test_find_dates_with_reference_date(
         ("march the first of 2025", [datetime(2025, 3, 1)]),
         ("Mar 15, 24", [datetime(2024, 3, 15)]),
         ("March 15 24", [datetime(2024, 3, 15)]),
-        ("march 3rd 99", [datetime(2099, 3, 3)]),
+        ("march 3rd 99", [datetime(1999, 3, 3)]),
         ("march 20 2025", [datetime(2025, 3, 20)]),
         ("march 2025", [datetime(2025, 3, 1)]),
         ("january, of 1998", [datetime(1998, 1, 1)]),
@@ -244,7 +334,6 @@ def test_find_dates_in_file(debug):
         datetime(2024, 12, 2, tzinfo=ZoneInfo("UTC")),
         datetime(2023, 7, 4, tzinfo=ZoneInfo("UTC")),
         datetime(2024, 5, 12, tzinfo=ZoneInfo("UTC")),
-        datetime(2019, 9, 8, tzinfo=ZoneInfo("UTC")),
         datetime(2024, 1, 12, tzinfo=ZoneInfo("UTC")),
         datetime(2024, 1, 9, tzinfo=ZoneInfo("UTC")),
         datetime(2025, 1, 23, tzinfo=ZoneInfo("UTC")),
@@ -308,8 +397,10 @@ def test_find_dates_in_file(debug):
         ("01-2-1", "year", [datetime(2001, 2, 1, tzinfo=ZoneInfo("UTC"))]),
         ("2001-02-1", "year", [datetime(2001, 2, 1, tzinfo=ZoneInfo("UTC"))]),
         ("2001-2-01", "year", [datetime(2001, 2, 1, tzinfo=ZoneInfo("UTC"))]),
+        ("16041905", "day", [datetime(1905, 4, 16, tzinfo=ZoneInfo("UTC"))]),
     ],
 )
+@freeze_time("2024-03-01")
 def test_first_number(
     text: str, first: Literal["month", "day", "year"], expected: list[datetime], debug
 ) -> None:

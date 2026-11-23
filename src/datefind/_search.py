@@ -59,7 +59,7 @@ def _midnight(day: date, tz: tzinfo) -> datetime:
 
 
 def search_dates(
-    text: str, tz: tzinfo, first: FirstNumber, now: date | None
+    text: str, tz: tzinfo, first: FirstNumber, now: date | None, *, short_digit_dates: bool
 ) -> Generator[FoundDate, None, None]:
     """Yield every date in the text as midnight in `tz`, with relative dates resolved against `now`.
 
@@ -70,12 +70,13 @@ def search_dates(
         tz: The timezone of the reference day and of every returned datetime.
         first: Which part comes first in ambiguous numeric dates such as 01/02/03.
         now: The date that relative dates such as "tomorrow" resolve against. None means the current time.
+        short_digit_dates: Whether runs of 4 to 7 digits with no separators can match. 8-digit runs always can.
 
     Yields:
         FoundDate: Each date found, in text order.
     """
-    regex = compile_date_regex(first)
-    patterns = pattern_table(first)
+    regex = compile_date_regex(first=first, short_digit_dates=short_digit_dates)
+    patterns = pattern_table(first=first, short_digit_dates=short_digit_dates)
     today = reference_day(now=now, tz=tz)
 
     for match in regex.finditer(text):

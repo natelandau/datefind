@@ -11,7 +11,6 @@ class FirstNumber(Enum):
     YEAR = "year"
 
 
-CENTURY = 20  # Used for years provided with two digits
 SEP_CHARS = r"-\/:,._\+@ "  # Define separator chars for reuse
 SEP_CLASS = rf"[{SEP_CHARS}]"
 SEP_CHARS_REGEX = rf"{SEP_CLASS}*?"
@@ -19,21 +18,22 @@ DD_FLEXIBLE = r"[12][0-9]|3[01]|0?[1-9]"
 DD = r"0[1-9]|[12][0-9]|3[01]"
 MM = r"0[1-9]|1[012]"
 MM_FLEXIBLE = r"1[012]|0?[1-9]"
-YYYY = r"19\d\d|20\d\d"
+# Years where a month name or a / - . separator marks the year
+YYYY = r"1\d\d\d|2\d\d\d"
+# Years where only position or a weak separator, such as a space, marks the year
+YYYY_NARROW = r"19\d\d|20\d\d"
 YYYY_FLEXIBLE = rf"{YYYY}|\d\d"
-JANUARY = r"january|jan"
-FEBRUARY = r"february|feb"
-MARCH = r"march|mar"
-APRIL = r"april|apr"
-MAY = r"may"
-JUNE = r"june?"
-JULY = r"july?"
-AUGUST = r"august|aug"
-SEPTEMBER = r"september|sept?"
-OCTOBER = r"october|oct"
-NOVEMBER = r"november|nov"
-DECEMBER = r"december|dec"
-MONTH = rf"{JANUARY}|{FEBRUARY}|{MARCH}|{APRIL}|{MAY}|{JUNE}|{JULY}|{AUGUST}|{SEPTEMBER}|{OCTOBER}|{NOVEMBER}|{DECEMBER}"
+YYYY_NARROW_FLEXIBLE = rf"{YYYY_NARROW}|\d\d"
+
+
+# Full month names can touch other letters ("someJanuary"). Abbreviations must stand
+# alone, so "mar" in "Market" or "Kumar" is not March. One lookaround pair around all
+# abbreviations keeps the scan fast.
+MONTH_FULL_NAMES = (
+    r"january|february|march|april|june|july|august|september|october|november|december"
+)
+MONTH_ABBREVIATIONS = r"jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec"
+MONTH = rf"{MONTH_FULL_NAMES}|(?<!\p{{L}})(?:{MONTH_ABBREVIATIONS})(?!\p{{L}})"
 # In day order, which is also the pattern's alternation order. A space marks where
 # compound ordinals accept a separator ("twenty first", "twenty-first", "twentyfirst").
 _ORDINAL_DAY_WORDS_IN_ORDER = (
