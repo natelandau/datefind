@@ -13,6 +13,10 @@ Finds dates in many different formats.
 - Weekdays - `Monday`, `next Friday`, `last Tuesday`, etc. The abbreviations `sat`, `sun`, and `wed` are also English words, so they match only after `last`, `this`, or `next`.
 - Quarters - `Q1 2024`, `2024 Q3`, etc.
 
+Dates with month names accept years from 1000 to 2999, such as `March 1105` or `dec 31 1899`. All-number dates with a day, a month, and a year accept years from 1000 to 2999 when `/`, `-`, or `.` divides the parts, such as `12/25/1850`. Every other all-number date must have a year from 1900 to 2099: dates with other separators such as spaces, a month and year without a day such as `12/2024`, and runs of digits with no separators. This keeps counts, prices, and ranges such as `10 2500 sold`, `1500.05`, or `pages 10-1500` from matching as dates.
+
+Month abbreviations such as `mar` or `may` match only as separate words, so `Market` and `Mayfield` are not months. Full month names can touch other letters.
+
 > [!NOTE]\
 > `datefind` is designed to be used with year, month, and day only. It does not support hours, minutes, seconds, or microseconds.
 
@@ -56,6 +60,9 @@ The `find_dates()` function is the main entry point for the datefind package. It
 - `first` - The first number to find in ambiguous dates. (one of `month`, `day`, `year`) Default is `month`
 - `tz` - The timezone to use, as a name such as `America/New_York` or a `tzinfo` object such as `ZoneInfo("Europe/Paris")`. Defaults to the local timezone.
 - `now` - The date that relative dates such as `tomorrow` or `3 days ago` resolve against, as a `date` or a `datetime`. An aware `datetime` is converted to `tz`. A naive `datetime` is read as a time in `tz`. Defaults to the current time.
+- `short_digit_dates` - If `True`, runs of 4 to 7 digits with no separators, such as `9819` or `120524`, match as dates. Runs of 8 digits, such as `20240512`, always match. Defaults to `False`, because short digit runs in text are usually years, page numbers, or quantities.
+
+A two-digit year takes the century that puts it within 50 years of `now`. With `now` in 2026, `75` becomes 2075 and `76` becomes 1976.
 
 Pass `now` to get the same results on every run, for example in tests:
 
