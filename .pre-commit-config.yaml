@@ -89,12 +89,18 @@ repos:
 
   - repo: local
     hooks:
-      - id: mypy
-        name: mypy
-        entry: mypy --config-file pyproject.toml
-        exclude: "tests/|duties.py"
+      - id: ty
+        name: ty
+        entry: ty check
         language: system
-        types: [ python ]
+        pass_filenames: false
+        files: |
+          (?x)^(
+          src/|
+          tests/|
+          uv\.lock|
+          pyproject\.toml
+          )
 
       - id: pytest
         name: pytest

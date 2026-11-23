@@ -1,7 +1,7 @@
 """Fixtures for tests."""
 
-from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 
 import pytest
 from rich.console import Console
@@ -9,14 +9,27 @@ from rich.console import Console
 console = Console()
 
 
+class DebugPrinter(Protocol):
+    """Signature of the function the `debug` fixture returns."""
+
+    def __call__(
+        self,
+        value: str | Path,
+        label: str = "",
+        *,
+        breakpoint: bool = False,
+        width: int = 80,
+    ) -> bool: ...
+
+
 @pytest.fixture
-def debug() -> Callable[[str | Path, str, bool, int], bool]:
+def debug() -> DebugPrinter:
     """Create a debug printing function for test development.
 
     Return a function that prints formatted debug output with clear visual separation and optional breakpoints. Useful for inspecting variables, file contents, or directory structures during test development.
 
     Returns:
-        Callable[[str | Path, str, bool, int], bool]: Debug printing function with parameters:
+        DebugPrinter: Debug printing function with parameters:
             - value: Data to debug print (string or Path)
             - label: Optional header text
             - breakpoint: Whether to pause execution after printing
