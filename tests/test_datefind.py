@@ -117,9 +117,16 @@ def test_raise_error_on_invalid_timezone():
         ("this Friday", [datetime(2024, 3, 1)]),
         ("last Friday", [datetime(2024, 2, 23)]),
         ("next Friday", [datetime(2024, 3, 8)]),
+        ("next sat", [datetime(2024, 3, 2)]),
+        ("last sun", [datetime(2024, 2, 25)]),
+        ("this wed", [datetime(2024, 3, 6)]),
         # Bare weekday substring prevention
         ("among friends", []),
         ("sunlight", []),
+        ("c'mon", []),
+        # Abbreviations that are also English words need a modifier
+        ("I sat down on the sun deck", []),
+        ("they wed", []),
         # Relative count patterns
         ("3 days ago", [datetime(2024, 2, 27)]),
         ("in 3 days", [datetime(2024, 3, 4)]),
