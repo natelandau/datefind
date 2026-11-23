@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import regex as re
-from rich.console import Console
 
 from datefind.pattern_factory import PatternFactory
 
@@ -16,8 +15,6 @@ from .constants import (
     DayToNumber,
     FirstNumber,
 )
-
-console = Console()
 
 _WEEKDAY_TO_NUM = {
     "monday": 0,
@@ -55,29 +52,19 @@ _RELATIVE_DATE_KEYS = (
     frozenset(_SIMPLE_OFFSET_DAYS) | frozenset(_MONTH_ADJUSTMENTS) | frozenset(_YEAR_ADJUSTMENTS)
 )
 
-# Two-letter keys cover the `xx?` optional-final-char alternation branches in
-# constants.MONTH (e.g., `jan?` can capture "ja"); three-letter keys cover standard
-# abbreviations and longer names via a first-3-chars slice.
+# Keyed by the first three letters, which identify every month name and abbreviation
 _MONTH_TEXT_MAP = {
-    "ja": 1,
     "jan": 1,
-    "fe": 2,
     "feb": 2,
-    "ma": 3,
     "mar": 3,
-    "ap": 4,
     "apr": 4,
     "may": 5,
     "jun": 6,
     "jul": 7,
-    "au": 8,
     "aug": 8,
     "sep": 9,
-    "oc": 10,
     "oct": 10,
-    "no": 11,
     "nov": 11,
-    "de": 12,
     "dec": 12,
 }
 
@@ -104,7 +91,7 @@ class FoundDate:
     """Store information about a date found in text.
 
     Properties:
-        date (datetime): The parsed datetime object
+        datetime (datetime): The parsed datetime object
         match (str): The specific text that matched the date pattern
         span (tuple[int, int]): The start and end positions of the match in the text
     """
@@ -134,7 +121,6 @@ class DateFind:
         self.text = text
         self.tz = tz
         self.first_number = first_number
-        self.base_date = datetime(datetime.now(self.tz).year, 1, 1, tzinfo=self.tz)
         self.factory = PatternFactory(first_number=self.first_number)
 
     def find_dates(self) -> Generator[FoundDate, None, None]:
@@ -166,7 +152,11 @@ class DateFind:
                 day = self._day_to_number(groups) or 1
                 month = self._month_to_number(groups) or now.month
                 year = self._year_to_number(groups) or now.year
-                as_dt = datetime(year=int(year), month=month, day=day, tzinfo=self.tz)
+                try:
+                    as_dt = datetime(year=year, month=month, day=day, tzinfo=self.tz)
+                except ValueError:
+                    # Calendar-invalid dates such as February 30 are not dates; skip the match
+                    as_dt = None
 
             if as_dt:
                 yield FoundDate(
@@ -244,7 +234,7 @@ class DateFind:
     ) -> datetime | None:
         """Resolve N-unit-ago / in-N-unit / N-unit-from-now expressions to a datetime.
 
-        Compute a concrete datetime by offsetting the current time by N of the matched unit (days, weeks, months, years). Direction is determined by presence of the `rel_ago` named group: if set, subtracts; otherwise (for "in" and "from now") adds. Invalid target dates (e.g., Feb 29 + 1 year in a non-leap year) resolve to None.
+        Compute a concrete datetime by offsetting the current time by N of the matched unit (days, weeks, months, years). Direction is determined by presence of the `rel_ago` named group: if set, subtracts; otherwise (for "in" and "from now") adds. Invalid target dates (e.g., Feb 29 + 1 year in a non-leap year) and offsets outside the supported datetime range resolve to None.
 
         Args:
             groups (dict[str, str | None]): The regex match groupdict containing rel_count, rel_unit, and optionally rel_ago
@@ -268,7 +258,7 @@ class DateFind:
                 return _offset_months(now, offset)
             if unit_lower == "year":
                 return now.replace(year=now.year + offset)
-        except ValueError:
+        except (ValueError, OverflowError):
             return None
         return None
 
@@ -327,7 +317,7 @@ class DateFind:
             int | None: The numeric day value, or None if no day found
         """
         if day_as_text := groups.get("day_as_text"):
-            day_as_text = re.sub(rf"[{SEP_CHARS}]", "", day_as_text)
+            day_as_text = re.sub(pattern=rf"[{SEP_CHARS}]", repl="", string=day_as_text)
             return DayToNumber[day_as_text.upper()].value
 
         if day := groups.get("day"):

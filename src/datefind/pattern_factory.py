@@ -53,6 +53,7 @@ MM_FLEXIBLE = rf"(?P<month>{MM_FLEXIBLE})"
 MONTH_AS_TEXT = f"(?P<month_as_text>{MONTH})"
 NEXT_WEEK = rf"(?P<next_week>{NEXT_WEEK})"
 SEPARATOR = rf"[{SEP_CHARS}]*?"
+REQUIRED_SEPARATOR = rf"[{SEP_CHARS}]+?"
 MONTH_DAY_SEPARATOR = rf"{SEPARATOR}(?:the|of)?{SEPARATOR}"
 # [Qq] excluded so that a digit following an invalid quarter (e.g. "Q5 2024") cannot
 # be consumed by numeric patterns like xxf_xxf_xxf.
@@ -65,8 +66,6 @@ YYYY_FLEXIBLE = rf"(?P<year>{YYYY_FLEXIBLE})"
 # 2-digit year alternative requires no preceding digit. Prevents MONTH_DD_YYYY from
 # splitting a 4-digit year like "2025" into day=20 + 2-digit year=25.
 YYYY_FLEXIBLE_NO_PREV_DIGIT = r"(?P<year>19\d\d|20\d\d|(?<!\d)\d\d)"
-
-ISO8601 = r"(?P<year>-?(\:[1-9][0-9]*)?[0-9]{4})\-(?P<month>1[0-2]|0[1-9])\-(?P<day>3[01]|0[1-9]|[12][0-9])T(?P<hour>2[0-3]|[01][0-9])\:(?P<minute>[0-5][0-9]):(?P<seconds>[0-5][0-9])(?:[\.,]+(?P<microseconds>[0-9]+))?(?P<offset>(?:Z|[+-](?:2[0-3]|[01][0-9])\:[0-5][0-9]))?"
 
 
 YYYY_MONTH_DD = rf"""
@@ -87,8 +86,9 @@ DD_MONTH_YYYY = rf"""
     {YYYY}
     {END}
 """
+# Month-first patterns skip START, which would reject a month name that follows a
+# number, as in "item 5 January 3, 2024"
 MONTH_DD_YYYY = rf"""
-    {START}
     {MONTH_AS_TEXT}
     {MONTH_DAY_SEPARATOR}
     ({DD_FLEXIBLE}|{DD_AS_TEXT})
@@ -104,14 +104,12 @@ YYYY_MONTH = rf"""
     {END}
 """
 MONTH_DD = rf"""
-    {START}
     {MONTH_AS_TEXT}
     {MONTH_DAY_SEPARATOR}
     ({DD_FLEXIBLE}|{DD_AS_TEXT})
     {END}
 """
 MONTH_YYYY = rf"""
-    {START}
     {MONTH_AS_TEXT}
     {MONTH_DAY_SEPARATOR}
     {YYYY}
@@ -119,7 +117,7 @@ MONTH_YYYY = rf"""
 """
 NATURAL_DATE = rf"""
     {START}
-    {TODAY}|{YESTERDAY}|{TOMORROW}|{LAST_WEEK}|{NEXT_WEEK}|{THIS_WEEK}|{LAST_MONTH}|{NEXT_MONTH}|{THIS_MONTH}|{LAST_YEAR}|{NEXT_YEAR}|{THIS_YEAR}
+    (?<!\w)(?:{TODAY}|{YESTERDAY}|{TOMORROW}|{LAST_WEEK}|{NEXT_WEEK}|{THIS_WEEK}|{LAST_MONTH}|{NEXT_MONTH}|{THIS_MONTH}|{LAST_YEAR}|{NEXT_YEAR}|{THIS_YEAR})(?!\w)
     {END}
 """
 YYYY_MM = rf"""
@@ -206,7 +204,7 @@ class PatternFactory:
     def _make_pattern(order: list[str]) -> str:
         """Create a regex pattern by joining date components in the specified order.
 
-        Combine date pattern components (year, month, day) with separators to form a complete regex pattern. The components are joined in the order specified, with each component separated by the SEPARATOR pattern except for the last one.
+        Combine date pattern components (year, month, day) to form a complete regex pattern. The components are joined in the order specified, either all adjacent (compact dates like "20240112") or all separated. Mixing the two is rejected so a run like "3, 2024" is not split into 3/20/24.
 
         Args:
             order (list[str]): List of date pattern components in the desired order (e.g. [YYYY, MM, DD])
@@ -214,13 +212,10 @@ class PatternFactory:
         Returns:
             str: A raw formatted string containing the complete regex pattern with start/end markers
         """
-        pattern = f"{START}"
-        for part in order:
-            pattern += part
-            if part != order[-1]:
-                pattern += f"{SEPARATOR}"
-        pattern += f"{END}"
-        return rf"{pattern}"
+        first, *rest = order
+        compact = "".join(rest)
+        separated = "".join(f"{REQUIRED_SEPARATOR}{part}" for part in rest)
+        return f"{START}{first}(?:{compact}|{separated}){END}"
 
     def make_regex(self) -> re.Pattern:
         """Create a compiled regular expression pattern for matching dates in text.

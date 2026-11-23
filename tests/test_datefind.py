@@ -140,6 +140,20 @@ def test_raise_error_on_invalid_timezone():
         ("contain 2 weeks", []),
         ("in 2 weekly", []),
         ("in 3 daysx", []),
+        ("1000000 days ago", []),
+        ("99999999999 days ago", []),
+        # Calendar-invalid dates
+        ("February 30, 2024", []),
+        ("Feb 29 2023", []),
+        # Two-letter words are not month abbreviations
+        ("No 10", []),
+        ("ma 15", []),
+        # Word-boundary anchoring for natural dates
+        ("this weekend", []),
+        ("next monthly", []),
+        ("ultimatoday", []),
+        # A number followed by a year is not split into month, day, and two-digit year
+        ("3, 2024", []),
     ],
 )
 @freeze_time("2024-03-01")
@@ -334,3 +348,18 @@ def test_find_dates_partial_match_in_word_context(debug):
     assert dates[0].datetime.strftime("%Y-%m-%d") == "2024-03-07"
     assert dates[0].match == "thursday"
     assert dates[0].span == (0, 8)
+
+
+@freeze_time("2024-03-01")
+def test_find_dates_month_name_after_number(debug):
+    """Verify a month name preceded by a number still anchors a month-first date."""
+    # Given: a month-first date that follows an unrelated number
+    text = "item 5 January 3, 2024"
+
+    # When: finding dates
+    dates = list(find_dates(text, first="month", tz="UTC"))
+
+    # Then: the full month-first date matches
+    assert len(dates) == 1
+    assert dates[0].datetime.strftime("%Y-%m-%d") == "2024-01-03"
+    assert dates[0].match == "January 3, 2024"
