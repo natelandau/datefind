@@ -155,6 +155,17 @@ def test_raise_error_on_invalid_timezone():
         ("ultimatoday", []),
         # A number followed by a year is not split into month, day, and two-digit year
         ("3, 2024", []),
+        # Case-insensitive matching treats long s (U+017F) as "s" and dotted capital I (U+0130) as "i"
+        ("la\u017ft week", [datetime(2024, 2, 23)]),
+        ("th\u0130s month", [datetime(2024, 3, 1)]),
+        ("today\u017f", [datetime(2024, 3, 1)]),
+        ("fir\u017ft of march 2024", [datetime(2024, 3, 1)]),
+        ("\u017funday", [datetime(2024, 3, 3)]),
+        ("la\u017ft monday", [datetime(2024, 2, 26)]),
+        ("\u017feptember 5 2024", [datetime(2024, 9, 5)]),
+        ("in 2 day\u017f", [datetime(2024, 3, 3)]),
+        # A count too long to convert to an integer is not a date
+        ("in " + "9" * 5000 + " days", []),
     ],
 )
 @freeze_time("2024-03-01")

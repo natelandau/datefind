@@ -59,7 +59,6 @@
         'if TYPE_CHECKING:',
     ]
     fail_under = 90
-    # omit = ["src/datefind/constants.py"]
     precision    = 1
     show_missing = true
     skip_covered = true
