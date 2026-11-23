@@ -1,4 +1,4 @@
-[![Tests](https://github.com/natelandau/datefind/actions/workflows/test.yml/badge.svg)](https://github.com/natelandau/datefind/actions/workflows/test.yml) [![codecov](https://codecov.io/gh/natelandau/datefind/graph/badge.svg?token=CXstf6zblD)](https://codecov.io/gh/natelandau/datefind)
+[![Tests](https://github.com/natelandau/datefind/actions/workflows/automated-tests.yml/badge.svg)](https://github.com/natelandau/datefind/actions/workflows/automated-tests.yml) [![codecov](https://codecov.io/gh/natelandau/datefind/graph/badge.svg?token=CXstf6zblD)](https://codecov.io/gh/natelandau/datefind)
 
 # datefind
 
@@ -6,12 +6,12 @@ A python module for locating dates within text. Use this package to search for d
 
 Finds dates in many different formats.
 
--   All numeric - `2024-01-01`, `01/01/2024`, `01012024`, etc.
--   Natural language - `January 1st, 2024`, `March nineteenth, 2024`, `twenty fifth of January`, `Mar 15, 24`, etc.
--   Fuzzy dates - `today`, `yesterday`, `tomorrow`, `last week`, `this week`, `next week`, etc.
--   Relative offsets - `3 days ago`, `in 2 weeks`, `1 year from now`, etc.
--   Weekdays - `Monday`, `next Friday`, `last Tuesday`, etc.
--   Quarters - `Q1 2024`, `2024 Q3`, etc.
+- All numeric - `2024-01-01`, `01/01/2024`, `01012024`, etc.
+- Natural language - `January 1st, 2024`, `March nineteenth, 2024`, `twenty fifth of January`, `Mar 15, 24`, etc.
+- Fuzzy dates - `today`, `yesterday`, `tomorrow`, `last week`, `this week`, `next week`, etc.
+- Relative offsets - `3 days ago`, `in 2 weeks`, `1 year from now`, etc.
+- Weekdays - `Monday`, `next Friday`, `last Tuesday`, etc.
+- Quarters - `Q1 2024`, `2024 Q3`, etc.
 
 > [!NOTE]\
 > `datefind` is designed to be used with year, month, and day only. It does not support hours, minutes, seconds, or microseconds.
@@ -52,15 +52,15 @@ The `find_dates()` function is the main entry point for the datefind package. It
 
 **Arguments**
 
--   `text` - The text to search for dates.
--   `first` - The first number to find in ambiguous dates. (one of `month`, `day`, `year`) Default is `month`
--   `tz` - The timezone to use. Defaults to the local timezone.
+- `text` - The text to search for dates.
+- `first` - The first number to find in ambiguous dates. (one of `month`, `day`, `year`) Default is `month`
+- `tz` - The timezone to use. Defaults to the local timezone.
 
 For each date found, a `FoundDate` object is returned. The FoundDate object has the following properties:
 
--   `datetime` - The datetime object.
--   `match` - The matched portion of the text.
--   `span` - The span of the matched text in the original text.
+- `datetime` - The datetime object.
+- `match` - The matched portion of the text.
+- `span` - The span of the matched text in the original text.
 
 ## Contributing
 
