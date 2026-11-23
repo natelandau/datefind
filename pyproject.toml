@@ -35,7 +35,6 @@
         "rich>=15.0.0",
         "ruff>=0.17.0",
         "ty>=0.0.108",
-        "types-python-dateutil>=2.9.0.20260807",
         "types-regex>=2026.11.19.20261122",
         "typos>=1.51.1",
         "yamllint>=1.38.0",
@@ -81,9 +80,6 @@
     filterwarnings = ["error"]
     strict         = true
     testpaths      = ["tests"]
-
-[tool.hatch.metadata]
-    allow-direct-references = true
 
 [tool.ruff] # https://github.com/charliermarsh/ruff
     exclude = [
