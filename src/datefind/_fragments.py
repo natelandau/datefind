@@ -83,7 +83,10 @@ YESTERDAY = r"yesterday'?s?"
 TOMORROW = r"tomorrow'?s?"
 # Offset, in units, of "<modifier> week", "<modifier> month", "<modifier> year"
 PERIOD_MODIFIER_OFFSETS: dict[str, int] = {"last": -1, "next": 1, "this": 0}
-WEEKDAYS = (
-    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu|thurs?|fri|sat|sun"
+UNAMBIGUOUS_WEEKDAYS = (
+    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|thu|thurs?|fri"
 )
+# Also common English words, so they count as weekdays only after last, this, or next
+WEEKDAY_ABBREVIATIONS_THAT_ARE_WORDS = r"wed|sat|sun"
+WEEKDAYS = rf"{UNAMBIGUOUS_WEEKDAYS}|{WEEKDAY_ABBREVIATIONS_THAT_ARE_WORDS}"
 QUARTER = r"[Qq][1-4]"

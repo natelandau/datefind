@@ -25,6 +25,7 @@ from datefind._fragments import (
     SEP_CLASS,
     TODAY,
     TOMORROW,
+    UNAMBIGUOUS_WEEKDAYS,
     WEEKDAYS,
     YESTERDAY,
     YYYY,
@@ -144,9 +145,10 @@ MODIFIED_WEEKDAY = rf"""
     (?P<weekday>{WEEKDAYS})(?!\w)
     {END}
 """
+# The apostrophe check keeps contractions like "c'mon" from matching
 BARE_WEEKDAY = rf"""
     {START}
-    (?<!\w)(?P<weekday>{WEEKDAYS})(?!\w)
+    (?<![\w'])(?P<weekday>{UNAMBIGUOUS_WEEKDAYS})(?!\w)
     {END}
 """
 
