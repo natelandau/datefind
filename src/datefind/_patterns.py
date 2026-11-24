@@ -12,6 +12,9 @@ from typing import get_args
 import regex as re
 
 from datefind._fragments import (
+    DASH_CLASS,
+    DAY_AFTER_TOMORROW,
+    DAY_BEFORE_YESTERDAY,
     DD,
     DD_FLEXIBLE,
     DIGIT_SUFFIXES,
@@ -23,6 +26,8 @@ from datefind._fragments import (
     QUARTER,
     SEP_CHARS_REGEX,
     SEP_CLASS,
+    SEP_CLASS_WITHOUT_HYPHEN,
+    TIME_OF_DAY,
     TODAY,
     TOMORROW,
     UNAMBIGUOUS_WEEKDAYS,
@@ -56,16 +61,25 @@ YEAR_GROUP = rf"(?P<year>{YYYY})"
 YEAR_FLEXIBLE_GROUP = rf"(?P<year>{YYYY_FLEXIBLE})"
 YEAR_NARROW_GROUP = rf"(?P<year>{YYYY_NARROW})"
 YEAR_NARROW_FLEXIBLE_GROUP = rf"(?P<year>{YYYY_NARROW_FLEXIBLE})"
-# 2-digit year alternative requires no preceding digit. Prevents MONTH_DD_YYYY from
-# splitting a 4-digit year like "2025" into day=20 + 2-digit year=25.
-YEAR_FLEXIBLE_NO_PREV_DIGIT_GROUP = rf"(?P<year>{YYYY}|(?<!\d)\d\d)"
-
-END = rf"(?![0-9]|{SEP_CLASS}[0-9])"
+# Digits after a date that are a time ("Jan 5 10:30", "2024-01-05, 3pm") are not part of a
+# longer number, so they do not stop the date from matching. Comes right before a check for
+# a following digit.
+_UNLESS_TIME_FOLLOWS = rf"(?![\s,@]+{TIME_OF_DAY})"
+# Rejects a date that runs into more digits
+END = rf"(?![0-9]|{_UNLESS_TIME_FOLLOWS}{SEP_CLASS}[0-9])"
 REQUIRED_SEPARATOR = rf"{SEP_CLASS}+?"
 # A separator with / - or . marks a numeric year clearly enough for years outside 1900 to 2099.
 # Spaces and commas alone also divide counts in prose, as in "10 2500 sold".
 YEAR_MARKING_SEPARATOR = rf"{SEP_CHARS_REGEX}[-/.]{SEP_CHARS_REGEX}"
 MONTH_DAY_SEPARATOR = rf"{SEP_CHARS_REGEX}(?:the|of)?{SEP_CHARS_REGEX}"
+# A day number before a month name starts a day-first date ("Jan 28 - 3 Feb")
+_NOT_BEFORE_MONTH_NAME = rf"(?!{MONTH_DAY_SEPARATOR}(?:{MONTH}))"
+# A two-digit year after a month name and day is not the end of a four-digit year ("March
+# 2025" is not March 20, 25), minutes ("Feb 10:00"), an hour ("Jan 5 10pm"), or the day of
+# a later date ("Jan 5 - 10 March")
+YEAR_AFTER_MONTH_DAY_GROUP = (
+    rf"(?P<year>{YYYY}|(?<!\d|:)(?!{TIME_OF_DAY})\d\d{_NOT_BEFORE_MONTH_NAME})"
+)
 PERIOD_MODIFIER = "|".join(PERIOD_MODIFIER_OFFSETS)
 # [Qq] excluded so that a digit following an invalid quarter (e.g. "Q5 2024") cannot
 # be consumed by numeric patterns like xxf_xxf_xxf.
@@ -89,6 +103,17 @@ DD_MONTH_YYYY = rf"""
     {YEAR_GROUP}
     {END}
 """
+# A range of days in one month ("Jan 5-10, 2024", "March 1 - 3", "Jan 5 to 10") matches so
+# that no part of it reads as a date, and resolves to no date. A hyphen between month and day
+# ("Jan-05-24") or a zero-padded day ("Jan 05-24") makes a hyphen after the day a date
+# separator instead. A month name after the second day ("Jan 28 - 3 Feb") makes two dates.
+_DAY_RANGE_END = rf"""
+    (?<=\p{{L}}{SEP_CLASS_WITHOUT_HYPHEN}+(?:(?:the|of){SEP_CLASS_WITHOUT_HYPHEN}+)?(?:[12]\d|3[01]|[1-9])(?:{DIGIT_SUFFIXES})?)
+    (?:\s*{DASH_CLASS}\s*|\s+(?:to|through|thru)\s+)
+    (?P<range_end_day>{DD_FLEXIBLE})(?:{DIGIT_SUFFIXES})?
+    {_NOT_BEFORE_MONTH_NAME}
+    (?:{MONTH_DAY_SEPARATOR}{YEAR_GROUP})?
+"""
 # Month-first patterns skip START, which would reject a month name that follows a
 # number, as in "item 5 January 3, 2024". A year glued to the day ("March 31999") is
 # only a position in a digit run, so it takes the narrow compact range.
@@ -97,7 +122,8 @@ MONTH_DD_YYYY = rf"""
     {MONTH_DAY_SEPARATOR}
     {DAY_OR_ORDINAL_DAY_GROUP}
     (?:
-        {MONTH_DAY_SEPARATOR}(?<!\d){YEAR_FLEXIBLE_NO_PREV_DIGIT_GROUP}
+        {_DAY_RANGE_END}
+        |{MONTH_DAY_SEPARATOR}(?<!\d){YEAR_AFTER_MONTH_DAY_GROUP}
         |{YEAR_NARROW_GROUP}
     )
     {END}
@@ -112,15 +138,22 @@ YYYY_MONTH = rf"""
 # A number after the month belongs to a month-first date ("5 January 3, 2024") or a
 # year, so the day-first reading stops before it. "may" is also a verb ("option 2 may
 # work"), so a bare number before it needs an ordinal or "the" / "of" to count as a day.
+# A day can also name its month relative to the reference day ("3rd of next month"). A bare
+# number before a possessive ("page 2 of this month's issue") counts items, not days.
 DD_MONTH = rf"""
     {START}
     (?:
-        {DAY_OR_ORDINAL_DAY_GROUP}{MONTH_DAY_SEPARATOR}(?!may(?!\p{{L}})){MONTH_NAME_GROUP}
+        {DAY_OR_ORDINAL_DAY_GROUP}
+        (?:
+            {MONTH_DAY_SEPARATOR}(?!may(?!\p{{L}})){MONTH_NAME_GROUP}
+            |(?:(?<=\p{{L}})|(?!{SEP_CLASS}+of{SEP_CLASS}+(?:{PERIOD_MODIFIER}){SEP_CLASS}+month'))
+                {SEP_CLASS}+of{SEP_CLASS}+(?P<month_modifier>{PERIOD_MODIFIER}){SEP_CLASS}+month
+        )
         |(?:(?P<day>{DD_FLEXIBLE})(?:{DIGIT_SUFFIXES})|{ORDINAL_DAY_GROUP})
             {MONTH_DAY_SEPARATOR}(?P<month_name>may)
         |(?P<day>{DD_FLEXIBLE}){SEP_CHARS_REGEX}(?:the|of){SEP_CHARS_REGEX}(?P<month_name>may)
     )
-    (?!\p{{L}}|{SEP_CHARS_REGEX}\d)
+    (?!\p{{L}}|{_UNLESS_TIME_FOLLOWS}{SEP_CHARS_REGEX}\d)
 """
 MONTH_DD = rf"""
     {MONTH_NAME_GROUP}
@@ -159,6 +192,7 @@ MODIFIED_WEEKDAY = rf"""
     {END}
 """
 # The apostrophe check keeps contractions like "c'mon" from matching
+BARE_WEEKDAY_PATTERN_NAME = "bare_weekday"
 BARE_WEEKDAY = rf"""
     {START}
     (?<![\w'])(?P<weekday>{UNAMBIGUOUS_WEEKDAYS})(?!\w)
@@ -168,7 +202,7 @@ BARE_WEEKDAY = rf"""
 # Relative words, grouped by the unit they offset, in alternation order
 _TIME_UNITS: tuple[TimeUnit, ...] = get_args(TimeUnit)
 _RELATIVE_WORDS_BY_UNIT: tuple[tuple[TimeUnit, str], ...] = (
-    ("day", f"{TODAY}|{YESTERDAY}|{TOMORROW}"),
+    ("day", f"{TODAY}|{YESTERDAY}|{TOMORROW}|{DAY_AFTER_TOMORROW}|{DAY_BEFORE_YESTERDAY}"),
     *(
         (unit, rf"(?:{PERIOD_MODIFIER}){SEP_CHARS_REGEX}{unit}'?s?")
         for unit in _TIME_UNITS
@@ -353,6 +387,14 @@ class DatePattern:
         """Name of the group that wraps this pattern in the combined regex."""
         return f"pattern_{self.name}"
 
+    @property
+    def takes_weekday_prefix(self) -> bool:
+        """Whether a weekday right before the match is part of the date, as in "Friday, January 5, 2024".
+
+        Only a calendar date that names a day can carry a weekday.
+        """
+        return self.resolver is resolve_calendar_date and self.precision == "day"
+
 
 @cache
 def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DatePattern, ...]:
@@ -495,7 +537,10 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
             precision="day",
         ),
         DatePattern(
-            name="bare_weekday", regex=BARE_WEEKDAY, resolver=resolve_weekday, precision="day"
+            name=BARE_WEEKDAY_PATTERN_NAME,
+            regex=BARE_WEEKDAY,
+            resolver=resolve_weekday,
+            precision="day",
         ),
     )
 

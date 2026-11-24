@@ -13,7 +13,7 @@ Library that finds dates in free text. Public API: `find_dates`, `FoundDate`, an
 - `_fragments.py`: regex fragments and word lookup tables.
 - `_patterns.py`: `pattern_table` lists every `DatePattern`; `compile_date_regex` joins them into one regex. Table order is alternation order, so an earlier row wins when two patterns match at the same position.
 - `_resolvers.py`: turns one match's named groups plus a reference `today` into a `date`. Return `None` when the text is not a real date (February 30).
-- `_search.py`: scans text, yields `FoundDate` per resolved match at midnight in the output timezone.
+- `_search.py`: scans text, yields `FoundDate` per resolved match at midnight in the output timezone. Holds checks too slow for the combined regex, run once per match: version prefix ("v2.1.1500"), weekday before a date (merged into that date's span). Put a new lookbehind-style rule here when it slows `scripts/compare_with_main.py` past 1.10x.
 
 ## Tests
 

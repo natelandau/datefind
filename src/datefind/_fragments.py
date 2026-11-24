@@ -13,6 +13,10 @@ class FirstNumber(Enum):
 
 SEP_CHARS = r"-\/:,._\+@ "  # Define separator chars for reuse
 SEP_CLASS = rf"[{SEP_CHARS}]"
+# The separators other than "-", which between a day and a number marks a range ("Jan 5-10")
+SEP_CLASS_WITHOUT_HYPHEN = rf"[{SEP_CHARS.removeprefix('-')}]"
+# Hyphen, en dash, and em dash
+DASH_CLASS = "[-\u2013\u2014]"
 SEP_CHARS_REGEX = rf"{SEP_CLASS}*?"
 DD_FLEXIBLE = r"[12][0-9]|3[01]|0?[1-9]"
 DD = r"0[1-9]|[12][0-9]|3[01]"
@@ -81,6 +85,11 @@ DIGIT_SUFFIXES = r"st|th|rd|nd"
 TODAY = r"today'?s?"
 YESTERDAY = r"yesterday'?s?"
 TOMORROW = r"tomorrow'?s?"
+DAY_AFTER_TOMORROW = rf"day{SEP_CLASS}+after{SEP_CLASS}+{TOMORROW}"
+DAY_BEFORE_YESTERDAY = rf"day{SEP_CLASS}+before{SEP_CLASS}+{YESTERDAY}"
+# An hour with minutes or with am/pm, such as "14:30", "9:15", "3pm", or "10 p.m.". ISO 8601
+# also writes the end of a day as "24:00".
+TIME_OF_DAY = r"(?:(?:[01]?\d|2[0-3])(?::[0-5]\d|\s?[ap]\.?m\.?(?!\p{L}))|24:00)"
 # Offset, in units, of "<modifier> week", "<modifier> month", "<modifier> year"
 PERIOD_MODIFIER_OFFSETS: dict[str, int] = {"last": -1, "next": 1, "this": 0}
 UNAMBIGUOUS_WEEKDAYS = (

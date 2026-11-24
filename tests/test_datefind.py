@@ -322,6 +322,31 @@ def test_find_dates_with_reference_date(
         ("in 2 day\u017f", [datetime(2024, 3, 3)]),
         # A count too long to convert to an integer is not a date
         ("in " + "9" * 5000 + " days", []),
+        # A weekday before a date is part of that date
+        ("Friday, January 5, 2024", [datetime(2024, 1, 5)]),
+        ("Wed, 03 Jan 2024", [datetime(2024, 1, 3)]),
+        ("Sat. 6 January", [datetime(2024, 1, 6)]),
+        ("Friday the 5th of January 2024", [datetime(2024, 1, 5)]),
+        ("Fri 01/05/2024", [datetime(2024, 1, 5)]),
+        ("Thursday 2024-01-04", [datetime(2024, 1, 4)]),
+        # Two days away
+        ("day after tomorrow", [datetime(2024, 3, 3)]),
+        ("day before yesterday", [datetime(2024, 2, 28)]),
+        # A day of the month relative to this month
+        ("3rd of next month", [datetime(2024, 4, 3)]),
+        ("twentieth of last month", [datetime(2024, 2, 20)]),
+        ("15 of this month", [datetime(2024, 3, 15)]),
+        ("31st of next month", []),
+        # A day range after a month name is not a day and a two-digit year
+        ("Jan 5-10", []),
+        ("Jan 5 - 10", []),
+        ("Jan 5-10, 2024", []),
+        ("Jan 5\u201310, 2024", []),
+        ("Jan 5 \u2013 10, 2024", []),
+        ("Jan 5 to 10, 2024", []),
+        ("Jan-05-24", [datetime(2024, 1, 5)]),
+        ("Jan 05-24", [datetime(2024, 1, 5)]),
+        ("March 5-2024", [datetime(2024, 3, 5)]),
     ],
 )
 @freeze_time("2024-03-01")
@@ -585,3 +610,72 @@ def test_find_dates_month_name_after_number(debug):
     assert len(dates) == 1
     assert dates[0].datetime.strftime("%Y-%m-%d") == "2024-01-03"
     assert dates[0].match == "January 3, 2024"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_match", "expected_date"),
+    [
+        ("05 Jan 2024 10:00:00", "05 Jan 2024", date(2024, 1, 5)),
+        ("Wed, 03 Jan 2024 10:00:00 +0000", "Wed, 03 Jan 2024", date(2024, 1, 3)),
+        ("2024-01-05 14:30", "2024-01-05", date(2024, 1, 5)),
+        ("1/5/2024 9:15 am", "1/5/2024", date(2024, 1, 5)),
+        ("Jan 5, 2024, 3 PM", "Jan 5, 2024", date(2024, 1, 5)),
+        ("Jan 5 10:00:00", "Jan 5", date(2024, 1, 5)),
+        ("Jan 5 10pm", "Jan 5", date(2024, 1, 5)),
+        ("Jan 5 10 p.m.", "Jan 5", date(2024, 1, 5)),
+        ("14 Feb 10:00", "14 Feb", date(2024, 2, 14)),
+        ("next friday 3pm", "next friday", date(2024, 3, 8)),
+        ("today 10:30", "today", date(2024, 3, 1)),
+        ("March 5 24:00", "March 5", date(2024, 3, 5)),
+    ],
+)
+def test_find_dates_followed_by_time(
+    text: str, expected_match: str, expected_date: date, debug
+) -> None:
+    """Verify a time of day after a date leaves the date found and is not read as part of it."""
+    # When: finding dates in text where a time follows the date
+    dates = list(find_dates(text, tz="UTC", now=date(2024, 3, 1)))
+
+    # Then: only the date part matches
+    assert [(found.match, found.datetime.date()) for found in dates] == [
+        (expected_match, expected_date)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        # A range across two months gives both dates
+        (
+            "Jan 28 - 3 Feb",
+            [("Jan 28", date(2024, 1, 28)), ("3 Feb", date(2024, 2, 3))],
+        ),
+        (
+            "Jan 5 - 10 March",
+            [("Jan 5", date(2024, 1, 5)), ("10 March", date(2024, 3, 10))],
+        ),
+        # "sat" is a verb unless punctuation marks it as a weekday
+        ("we sat 2 jan 2024", [("2 jan 2024", date(2024, 1, 2))]),
+        # A bare number before a possessive month counts items, not days
+        ("page 2 of this month's issue", [("this month's", date(2024, 3, 1))]),
+        ("the day after tomorrow", [("day after tomorrow", date(2024, 3, 3))]),
+        ("on the 3rd of next month", [("3rd of next month", date(2024, 4, 3))]),
+        # A weekday already part of an earlier date is not also part of the next date
+        (
+            "next Friday, January 5",
+            [("next Friday", date(2024, 3, 8)), ("January 5", date(2024, 1, 5))],
+        ),
+        # A weekday not directly before a date stays a date of its own
+        (
+            "Monday, then January 5",
+            [("Monday", date(2024, 3, 4)), ("January 5", date(2024, 1, 5))],
+        ),
+    ],
+)
+def test_find_dates_partial_phrases(text: str, expected: list[tuple[str, date]], debug) -> None:
+    """Verify phrases around a date yield the whole date or nothing, never a wrong date."""
+    # When: finding dates in the phrase
+    dates = list(find_dates(text, tz="UTC", now=date(2024, 3, 1)))
+
+    # Then: the matched text and date are exactly as expected
+    assert [(found.match, found.datetime.date()) for found in dates] == expected

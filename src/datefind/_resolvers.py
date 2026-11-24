@@ -52,7 +52,13 @@ _MONTH_NUMBERS: dict[str, int] = {
     "dec": 12,
 }
 
-_DAY_WORD_OFFSETS: dict[str, int] = {"yesterday": -1, "today": 0, "tomorrow": 1}
+_DAY_WORD_OFFSETS: dict[str, int] = {
+    "daybeforeyesterday": -2,
+    "yesterday": -1,
+    "today": 0,
+    "tomorrow": 1,
+    "dayaftertomorrow": 2,
+}
 _SEPARATORS_AND_APOSTROPHES = re.compile(rf"{SEP_CLASS}|'")
 # Case-insensitive matching treats these as ASCII letters, but str.lower() does not
 _LOOKALIKE_LETTERS = str.maketrans({"\u017f": "s", "\u0130": "i"})
@@ -197,7 +203,7 @@ def _day_number(groups: MatchGroups) -> int | None:
 def resolve_calendar_date(groups: MatchGroups, today: date) -> date | None:
     """Build an explicit calendar date, filling a missing part from the reference day.
 
-    A missing day becomes the first of the month. A missing month or year comes from `today`.
+    A missing day becomes the first of the month. A missing month or year comes from `today`, or from the month before or after it for "of last month" or "of next month". A range of days resolves to None, so no part of it is reported as a date.
 
     Args:
         groups: The named groups of the match.
@@ -206,10 +212,17 @@ def resolve_calendar_date(groups: MatchGroups, today: date) -> date | None:
     Returns:
         date | None: The date, or None if the parts do not form a real date, such as February 30.
     """
+    if groups.get("range_end_day"):
+        return None
     try:
+        reference = today
+        if modifier := groups.get("month_modifier"):
+            months = _lookup_word(table=PERIOD_MODIFIER_OFFSETS, text=modifier)
+            # The first of the month exists in every month, so the shift cannot fail on the day
+            reference = _offset_months(today=today.replace(day=1), months=months)
         return date(
-            year=_year_number(groups=groups, today=today) or today.year,
-            month=_month_number(groups) or today.month,
+            year=_year_number(groups=groups, today=today) or reference.year,
+            month=_month_number(groups) or reference.month,
             day=_day_number(groups) or 1,
         )
     except ValueError:

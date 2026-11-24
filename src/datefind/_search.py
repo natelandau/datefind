@@ -6,15 +6,39 @@ from datetime import date, datetime, time, tzinfo
 
 import regex as re
 
-from datefind._fragments import SEP_CLASS, FirstNumber
-from datefind._patterns import compile_date_regex, pattern_table
+from datefind._fragments import (
+    SEP_CLASS,
+    UNAMBIGUOUS_WEEKDAYS,
+    WEEKDAY_ABBREVIATIONS_THAT_ARE_WORDS,
+    FirstNumber,
+)
+from datefind._patterns import BARE_WEEKDAY_PATTERN_NAME, compile_date_regex, pattern_table
 from datefind._resolvers import DatePrecision
 
 # A standalone "v" or "version" marks a version number ("v2.1.1500"), not a date. Checked
 # per match rather than inside the date regex, where the lookbehind slows every scan.
-_VERSION_PREFIX = re.compile(rf"(?<!\p{{L}})(?:v|version){SEP_CLASS}{{0,2}}\Z", re.IGNORECASE)
-# Long enough to hold "version", two separators, and the letter before it
-_VERSION_PREFIX_WINDOW = 12
+_VERSION_PREFIX = re.compile(
+    pattern=rf"(?<!\p{{L}})(?:v|version){SEP_CLASS}{{0,2}}\Z", flags=re.IGNORECASE
+)
+# Long enough to hold "version" and two separators
+_VERSION_PREFIX_WINDOW = 9
+# A weekday right before a date, as in "Friday, January 5" or "Wed, the 3rd of January". Checked
+# per match rather than as an optional prefix in the date regex, which slows every scan. "wed",
+# "sat", and "sun" are also English words ("we sat 2 days"), so they need a "," or "." after them.
+_WEEKDAY_PREFIX = re.compile(
+    pattern=rf"""
+        (?<![\w'])
+        (?:
+            (?:{UNAMBIGUOUS_WEEKDAYS})(?!\p{{L}}){SEP_CLASS}+
+            |(?:{WEEKDAY_ABBREVIATIONS_THAT_ARE_WORDS})[.,]{SEP_CLASS}*
+        )
+        (?:the{SEP_CLASS}+)?
+        \Z
+    """,
+    flags=re.IGNORECASE | re.VERBOSE,
+)
+# Long enough to hold "wednesday", "the", and a few separators
+_WEEKDAY_PREFIX_WINDOW = 20
 
 
 @dataclass
@@ -81,8 +105,52 @@ def _follows_version_prefix(text: str, start: int) -> bool:
     """
     if text[start] not in "0123456789":
         return False
-    preceding = text[max(0, start - _VERSION_PREFIX_WINDOW) : start]
-    return _VERSION_PREFIX.search(preceding) is not None
+    return (
+        _match_ending_at(
+            pattern=_VERSION_PREFIX, text=text, end=start, window=_VERSION_PREFIX_WINDOW
+        )
+        is not None
+    )
+
+
+def _match_ending_at(
+    pattern: re.Pattern[str], text: str, end: int, window: int, earliest: int = 0
+) -> re.Match[str] | None:
+    """Search the text just before `end` for a pattern anchored to the end of the text, such as a prefix of a date.
+
+    Args:
+        pattern: The pattern to search for. It must be anchored to the end of the text to match only text that ends at `end`.
+        text: The text being searched.
+        end: Where the searched text ends.
+        window: How many characters before `end` to search.
+        earliest: The first position the match can start at.
+
+    Returns:
+        re.Match[str] | None: The match, or None when the text before `end` does not end with the pattern.
+    """
+    # pos, unlike slicing, lets a lookbehind see the character before the window
+    return pattern.search(string=text, pos=max(earliest, end - window), endpos=end)
+
+
+def _weekday_prefix_start(text: str, start: int, earliest: int) -> int:
+    """Find where a date starting at `start` begins once a weekday right before it is included.
+
+    Args:
+        text: The text being searched.
+        start: Where the date match begins.
+        earliest: The end of the last date already yielded, so one weekday cannot belong to two dates.
+
+    Returns:
+        int: The start of the weekday before the date, or `start` when there is none.
+    """
+    prefix = _match_ending_at(
+        pattern=_WEEKDAY_PREFIX,
+        text=text,
+        end=start,
+        window=_WEEKDAY_PREFIX_WINDOW,
+        earliest=earliest,
+    )
+    return prefix.start() if prefix else start
 
 
 def search_dates(
@@ -90,7 +158,7 @@ def search_dates(
 ) -> Generator[FoundDate, None, None]:
     """Yield every date in the text as midnight in `tz`, with relative dates resolved against `now`.
 
-    Matches that look like dates but are not real dates, such as February 30, are skipped.
+    Matches that look like dates but are not real dates, such as February 30, are skipped. A weekday right before a date is part of that date, not a date of its own.
 
     Args:
         text: The text to search.
@@ -106,6 +174,10 @@ def search_dates(
     patterns = pattern_table(first=first, short_digit_dates=short_digit_dates)
     today = reference_day(now=now, tz=tz)
 
+    # A bare weekday is held back until the next match shows whether it starts a longer date
+    pending_weekday: FoundDate | None = None
+    # End of the last yielded date that is not a bare weekday, so no weekday joins two dates
+    previous_end = 0
     for match in regex.finditer(text):
         if _follows_version_prefix(text=text, start=match.start()):
             continue
@@ -116,10 +188,24 @@ def search_dates(
             msg = f"Expected one pattern group to match {match.group()!r}, got none"
             raise RuntimeError(msg)
         resolved = pattern.resolver(groups=groups, today=today)
-        if resolved is not None:
-            yield FoundDate(
-                datetime=_midnight(day=resolved, tz=tz),
-                match=match.group(),
-                span=match.span(),
-                precision=pattern.precision,
-            )
+        if resolved is None:
+            continue
+        start, end = match.span()
+        if pattern.takes_weekday_prefix:
+            start = _weekday_prefix_start(text=text, start=start, earliest=previous_end)
+        if pending_weekday is not None and pending_weekday.span[0] != start:
+            yield pending_weekday
+        pending_weekday = None
+        found = FoundDate(
+            datetime=_midnight(day=resolved, tz=tz),
+            match=text[start:end],
+            span=(start, end),
+            precision=pattern.precision,
+        )
+        if pattern.name == BARE_WEEKDAY_PATTERN_NAME:
+            pending_weekday = found
+        else:
+            previous_end = end
+            yield found
+    if pending_weekday is not None:
+        yield pending_weekday
