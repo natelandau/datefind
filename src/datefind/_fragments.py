@@ -15,8 +15,26 @@ SEP_CHARS = r"-\/:,._\+@ "  # Define separator chars for reuse
 SEP_CLASS = rf"[{SEP_CHARS}]"
 # The separators other than "-", which between a day and a number marks a range ("Jan 5-10")
 SEP_CLASS_WITHOUT_HYPHEN = rf"[{SEP_CHARS.removeprefix('-')}]"
-# Hyphen, en dash, and em dash
-DASH_CLASS = "[-\u2013\u2014]"
+# Separators that do not mark a numeric year ("12 25 2024"). "-", "/", and "." do, and
+# mixed with a weak separator they belong to other numbers ("3.8, 10", "pages 3-8, 10").
+WEAK_SEP_CLASS = "[" + "".join(char for char in SEP_CHARS if char not in "-/.") + "]"
+# Unicode forms of ASCII characters the patterns match, each mapped to one character so
+# that positions in the converted text are positions in the original. Covers text copied
+# from web pages and word processors: non-breaking and other spaces, dashes, curly
+# apostrophes, and full-width digits and separators. Also the long s and dotted capital I,
+# which case-insensitive matching treats as "s" and "i" but str.lower() does not.
+ASCII_EQUIVALENTS: dict[int, str] = {
+    0x017F: "s",
+    0x0130: "i",
+    **dict.fromkeys((0x00A0, *range(0x2000, 0x200B), 0x202F, 0x205F, 0x3000), " "),
+    **dict.fromkeys((*range(0x2010, 0x2016), 0x2212, 0xFE58, 0xFE63, 0xFF0D), "-"),
+    **dict.fromkeys((0x2018, 0x2019, 0x02BC, 0x2032), "'"),
+    **{0xFF10 + digit: str(digit) for digit in range(10)},
+    0xFF0F: "/",
+    0xFF0E: ".",
+    0xFF0C: ",",
+    0xFF1A: ":",
+}
 SEP_CHARS_REGEX = rf"{SEP_CLASS}*?"
 DD_FLEXIBLE = r"[12][0-9]|3[01]|0?[1-9]"
 DD = r"0[1-9]|[12][0-9]|3[01]"

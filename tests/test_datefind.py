@@ -347,6 +347,27 @@ def test_find_dates_with_reference_date(
         ("Jan-05-24", [datetime(2024, 1, 5)]),
         ("Jan 05-24", [datetime(2024, 1, 5)]),
         ("March 5-2024", [datetime(2024, 3, 5)]),
+        # Unicode spaces, dashes, apostrophes, and full-width digits read as their ASCII forms
+        ("January 5,\u00a02024", [datetime(2024, 1, 5)]),
+        ("Jan\u00a05, 2024", [datetime(2024, 1, 5)]),
+        ("2024\u201301\u201305", [datetime(2024, 1, 5)]),
+        ("\uff12\uff10\uff12\uff14-01-05", [datetime(2024, 1, 5)]),
+        # An apostrophe marks a two-digit year
+        ("Jan 5 '24", [datetime(2024, 1, 5)]),
+        ("Jan 5 \u201924", [datetime(2024, 1, 5)]),
+        # A decimal number before a comma and a number is not a date
+        ("3.8, 10", []),
+        ("3-8, 10", []),
+        ("3/8, 10", []),
+        # A four-digit year after mixed separators still marks a date
+        ("12/25, 2024", [datetime(2024, 12, 25)]),
+        ("12-25 2024", [datetime(2024, 12, 25)]),
+        # A counted offset before a date shifts that date
+        ("2 weeks after Jan 5, 2024", [datetime(2024, 1, 19)]),
+        ("2 weeks after the 5th of January 2024", [datetime(2024, 1, 19)]),
+        ("2 weeks after Tuesday, Jan 5, 2024", [datetime(2024, 1, 19)]),
+        ("3 days before 2024-01-01", [datetime(2023, 12, 29)]),
+        ("1 year from Feb 29, 2024", []),
     ],
 )
 @freeze_time("2024-03-01")
@@ -664,6 +685,20 @@ def test_find_dates_followed_by_time(
         (
             "next Friday, January 5",
             [("next Friday", date(2024, 3, 8)), ("January 5", date(2024, 1, 5))],
+        ),
+        # A weekday that disagrees with its date is not part of the date, nor a date of its own
+        ("Tuesday, January 5, 2024", [("January 5, 2024", date(2024, 1, 5))]),
+        # Without a stated year the year is a guess, so the weekday stays part of the date
+        ("Tuesday, January 5", [("Tuesday, January 5", date(2024, 1, 5))]),
+        # A weekday between an offset and its date is part of that date
+        (
+            "2 weeks after Friday, Jan 5, 2024",
+            [("2 weeks after Friday, Jan 5, 2024", date(2024, 1, 19))],
+        ),
+        # "from" before the first day of a range is not an offset
+        (
+            "3 years from 2020-01-01 to 2023-01-01",
+            [("2020-01-01", date(2020, 1, 1)), ("2023-01-01", date(2023, 1, 1))],
         ),
         # A weekday not directly before a date stays a date of its own
         (

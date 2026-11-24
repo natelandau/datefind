@@ -7,20 +7,23 @@ A python module for locating dates within text. Use this package to search for d
 Finds dates in many different formats.
 
 - All numeric - `2024-01-01`, `01/01/2024`, `01012024`, etc.
-- Natural language - `January 1st, 2024`, `March nineteenth, 2024`, `twenty fifth of January`, `Mar 15, 24`, `14 Feb`, `3rd March`, etc. Because `may` is also a verb, a plain number before it is not a date (`option 2 may work`). Write `2nd May` or `2 of May` instead.
+- Natural language - `January 1st, 2024`, `March nineteenth, 2024`, `twenty fifth of January`, `Mar 15, 24`, `Jan 5 '24`, `14 Feb`, `3rd March`, etc. Because `may` is also a verb, a plain number before it is not a date (`option 2 may work`). Write `2nd May` or `2 of May` instead.
 - Fuzzy dates - `today`, `yesterday`, `tomorrow`, `day after tomorrow`, `day before yesterday`, `last week`, `this week`, `next week`, etc.
 - Relative offsets - `3 days ago`, `in 2 weeks`, `1 year from now`, etc.
+- Offsets from a date - `2 weeks after Jan 5, 2024`, `3 days before 2024-01-01`. The result is the shifted date.
 - A day in a relative month - `3rd of next month`, `twentieth of last month`, `15 of this month`.
 - Weekdays - `Monday`, `next Friday`, `last Tuesday`, etc. The abbreviations `sat`, `sun`, and `wed` are also English words, so they match only after `last`, `this`, or `next`.
 - Quarters - `Q1 2024`, `2024 Q3`, etc.
 
-A weekday directly before a date is part of that date. `Friday, January 5, 2024` and `Wed, 03 Jan 2024` each give one date, not a date and a separate weekday.
+A weekday directly before a date is part of that date. `Friday, January 5, 2024` and `Wed, 03 Jan 2024` each give one date, not a date and a separate weekday. If the date states its year and the weekday does not agree with it, as in `Tuesday, January 5, 2024`, the weekday is ignored and only the date is found.
 
 A day range in one month, such as `Jan 5-10, 2024` or `Jan 5 to 10`, gives no date. Neither end of the range is reported, so the `10` is not read as the year 2010.
 
 Dates with month names accept years from 1000 to 2999, such as `March 1105` or `dec 31 1899`. All-number dates with a day, a month, and a year accept years from 1000 to 2999 when `/`, `-`, or `.` divides the parts, such as `12/25/1850`. Every other all-number date must have a year from 1900 to 2099: dates with other separators such as spaces, a month and year without a day such as `12/2024`, and runs of digits with no separators. This keeps counts, prices, and ranges such as `10 2500 sold`, `1500.05`, or `pages 10-1500` from matching as dates.
 
 Month abbreviations such as `mar` or `may` match only as separate words, so `Market` and `Mayfield` are not months. Full month names can touch other letters.
+
+Text copied from web pages and word processors works without cleanup. Non-breaking spaces, en dashes, curly apostrophes, and full-width digits match the same as their plain forms. The `match` and `span` of each result refer to the original text.
 
 > [!NOTE]\
 > `datefind` finds the year, month, and day only. It does not read hours, minutes, seconds, or microseconds. A time after a date, as in `2024-01-05 14:30` or `Jan 5 10pm`, is ignored, and the date before it is found.

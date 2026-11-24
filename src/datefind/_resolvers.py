@@ -5,7 +5,7 @@ Each resolver handles one kind of match and receives the reference day instead o
 
 from collections.abc import Mapping
 from datetime import date, timedelta
-from typing import Literal, Protocol, TypeAlias
+from typing import Literal, Protocol, TypeAlias, TypeVar, get_args
 
 import regex as re
 
@@ -17,6 +17,8 @@ TimeUnit: TypeAlias = Literal["day", "week", "month", "year"]
 # lands on one day; a named period such as "last month" names only the month.
 DatePrecision: TypeAlias = Literal[TimeUnit, "quarter"]
 Direction: TypeAlias = Literal[-1, 1]
+TIME_UNITS: tuple[TimeUnit, ...] = get_args(TimeUnit)
+_TableValue = TypeVar("_TableValue")
 
 
 class Resolver(Protocol):
@@ -60,14 +62,14 @@ _DAY_WORD_OFFSETS: dict[str, int] = {
     "dayaftertomorrow": 2,
 }
 _SEPARATORS_AND_APOSTROPHES = re.compile(rf"{SEP_CLASS}|'")
-# Case-insensitive matching treats these as ASCII letters, but str.lower() does not
-_LOOKALIKE_LETTERS = str.maketrans({"\u017f": "s", "\u0130": "i"})
 
 
-def _lookup_word(table: Mapping[str, int], text: str, prefix_length: int | None = None) -> int:
+def _lookup_word(
+    table: Mapping[str, _TableValue], text: str, prefix_length: int | None = None
+) -> _TableValue:
     """Look up matched word text in a table keyed by lowercase ASCII words.
 
-    Normalize the text the same way for every table: lowercase it, remove separators and apostrophes, and fold look-alike letters to ASCII. Every word lookup goes through here so that text the regex accepts always has a key.
+    Normalize the text the same way for every table: lowercase it and remove separators and apostrophes. Every word lookup goes through here so that text the regex accepts always has a key. The text comes from the search text, where look-alike letters are already ASCII.
 
     Args:
         table: The lookup table.
@@ -75,13 +77,13 @@ def _lookup_word(table: Mapping[str, int], text: str, prefix_length: int | None 
         prefix_length: Look up only this many leading characters of the normalized text. Defaults to the whole text.
 
     Returns:
-        int: The table value for the word.
+        _TableValue: The table value for the word.
 
     Raises:
         RuntimeError: If the normalized text has no key, which means a pattern and its table disagree.
     """
     without_separators = _SEPARATORS_AND_APOSTROPHES.sub(repl="", string=text)
-    key = without_separators.translate(_LOOKALIKE_LETTERS).lower()[:prefix_length]
+    key = without_separators.lower()[:prefix_length]
     if key not in table:
         msg = f"Expected a known word for {text!r}, got key {key!r}"
         raise RuntimeError(msg)
@@ -229,6 +231,42 @@ def resolve_calendar_date(groups: MatchGroups, today: date) -> date | None:
         return None
 
 
+def weekday_number(name: str) -> int:
+    """Read a weekday name or abbreviation as a number, so callers can compare it with date.weekday().
+
+    Args:
+        name: The matched weekday text, such as "Friday" or "tues".
+
+    Returns:
+        int: The weekday, where Monday is 0 and Sunday is 6.
+    """
+    return _lookup_word(table=_WEEKDAY_NUMBERS, text=name, prefix_length=3)
+
+
+_UNITS_BY_WORD: dict[str, TimeUnit] = {
+    word: unit for unit in TIME_UNITS for word in (unit, f"{unit}s")
+}
+_OFFSET_DIRECTIONS: dict[str, Direction] = {"after": 1, "from": 1, "before": -1}
+
+
+def offset_date(day: date, count: str, unit: str, direction: str) -> date | None:
+    """Shift a stated date by a counted offset written before it, as in "2 weeks after Jan 5, 2024".
+
+    Args:
+        day: The stated date.
+        count: The matched count, such as "2".
+        unit: The matched unit word, such as "weeks".
+        direction: The matched direction word: "after", "from", or "before".
+
+    Returns:
+        date | None: The shifted date, or None if it does not exist, such as February 29 plus one year.
+    """
+    sign = _lookup_word(table=_OFFSET_DIRECTIONS, text=direction)
+    return _shift(
+        today=day, unit=_lookup_word(table=_UNITS_BY_WORD, text=unit), amount=int(count) * sign
+    )
+
+
 def resolve_weekday(groups: MatchGroups, today: date) -> date:
     """Resolve a weekday, with or without a `last`, `this`, or `next` modifier.
 
@@ -242,7 +280,7 @@ def resolve_weekday(groups: MatchGroups, today: date) -> date:
         date: The resolved date.
     """
     weekday = _required_group(groups=groups, name="weekday")
-    target = _lookup_word(table=_WEEKDAY_NUMBERS, text=weekday, prefix_length=3)
+    target = weekday_number(weekday)
     current = today.weekday()
     modifier = groups.get("weekday_modifier")
     direction = _lookup_word(table=PERIOD_MODIFIER_OFFSETS, text=modifier) if modifier else 1
