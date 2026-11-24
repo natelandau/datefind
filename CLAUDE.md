@@ -6,6 +6,7 @@ Library that finds dates in free text. Public API: `find_dates` and `FoundDate`,
 
 - Test: `uv run duty test`. Extra args go to pytest: `uv run duty test -k leap`. Coverage below 90% fails.
 - Lint: `uv run duty lint` (ruff, ty, typos, prek hooks).
+- Compare with main: `uv run python scripts/compare_with_main.py` (about 1 minute). Run before committing a change to `_fragments.py` or `_patterns.py`. Every listed output difference is a regression unless the change intends it; a scan over 1.10x main's time is a regression.
 
 ## Code map
 

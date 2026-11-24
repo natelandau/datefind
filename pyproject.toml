@@ -3,7 +3,6 @@
     classifiers = [
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3 :: Only",
@@ -150,7 +149,7 @@
             "S101",
             "SLF001",
 
-        ], "duties.py" = ["ANN001"] }
+        ], "duties.py" = ["ANN001"], "scripts/*.py" = ["INP001", "S603", "S607", "T201"] }
         select = ["ALL"]
         unfixable = [
             "ERA001", # Commented out code
@@ -173,7 +172,7 @@
         skip-magic-trailing-comma = false
 
 [tool.ty.src] # https://docs.astral.sh/ty/reference/configuration/
-    include = ["src", "tests"]
+    include = ["scripts", "src", "tests"]
 
 [tool.ty.terminal]
     error-on-warning = true
