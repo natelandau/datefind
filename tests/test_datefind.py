@@ -271,6 +271,11 @@ def test_find_dates_with_reference_date(
         # Abbreviations that are also English words need a modifier
         ("I sat down on the sun deck", []),
         ("they wed", []),
+        # Version numbers after "v" or "version" are not dates
+        ("version 2.1.1500", []),
+        ("v2.1.1500", []),
+        ("V1.2.2024", []),
+        ("Version: 1.2.2024", []),
         # Relative count patterns
         ("3 days ago", [datetime(2024, 2, 27)]),
         ("in 3 days", [datetime(2024, 3, 4)]),
@@ -514,6 +519,20 @@ def test_find_dates_partial_match_in_word_context(debug):
     assert dates[0].datetime.strftime("%Y-%m-%d") == "2024-03-07"
     assert dates[0].match == "thursday"
     assert dates[0].span == (0, 8)
+
+
+def test_find_dates_after_word_ending_in_v(debug):
+    """Verify only a standalone "v" marks a version number, not a word that ends in v."""
+    # Given: a date after a word ending in "v"
+    text = "dev 1.2.2024"
+
+    # When: finding dates
+    dates = list(find_dates(text, first="month", tz="UTC"))
+
+    # Then: the date still matches
+    assert [(found.match, found.datetime.date()) for found in dates] == [
+        ("1.2.2024", date(2024, 1, 2))
+    ]
 
 
 @freeze_time("2024-03-01")
