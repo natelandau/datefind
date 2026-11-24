@@ -7,6 +7,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import cache
 from itertools import groupby
+from typing import Literal, TypeAlias
 
 import regex as re
 
@@ -20,10 +21,11 @@ from datefind._fragments import (
     MM_FLEXIBLE,
     MONTH,
     ORDINAL_DAY_WORDS,
+    ORDINAL_DAY_WORDS_IN_ORDER,
     PERIOD_MODIFIER_OFFSETS,
-    QUARTER,
     SEP_CHARS_REGEX,
     SEP_CLASS,
+    SEP_CLASS_WITHOUT_COMMA,
     SEP_CLASS_WITHOUT_HYPHEN,
     TIME_OF_DAY,
     TODAY,
@@ -44,9 +46,11 @@ from datefind._resolvers import (
     Direction,
     Resolver,
     TimeUnit,
+    part_of_year_resolver,
     relative_count_resolver,
     relative_word_resolver,
     resolve_calendar_date,
+    resolve_iso_week,
     resolve_weekday,
 )
 
@@ -77,11 +81,12 @@ MONTH_DAY_SEPARATOR = rf"{SEP_CHARS_REGEX}(?:the|of)?{SEP_CHARS_REGEX}"
 _NOT_BEFORE_MONTH_NAME = rf"(?!{MONTH_DAY_SEPARATOR}(?:{MONTH}))"
 # A two-digit year after a month name and day is not the end of a four-digit year ("March
 # 2025" is not March 20, 25), minutes ("Feb 10:00"), an hour ("Jan 5 10pm"), or the day of
-# a later date ("Jan 5 - 10 March")
+# a later date ("Jan 5 - 10 March"). A letter after it makes a decade ("Jan 5 '90s").
 # An apostrophe can mark a two-digit year ("Jan 5 '24").
-YEAR_AFTER_MONTH_DAY_GROUP = (
-    rf"(?:(?P<year>{YYYY})|(?<!\d|:)'?(?!{TIME_OF_DAY})(?P<year>\d\d){_NOT_BEFORE_MONTH_NAME})"
-)
+YEAR_AFTER_MONTH_DAY_GROUP = rf"(?:(?P<year>{YYYY})|(?<!\d|:)'?(?!{TIME_OF_DAY})(?P<year>\d\d)(?!\p{{L}}){_NOT_BEFORE_MONTH_NAME})"
+# A two-digit year marked by an apostrophe ("Q4 '23", "Jan '24"). A letter after it makes a
+# decade ("the '90s").
+APOSTROPHE_YEAR_GROUP = r"'(?P<year>\d\d)(?![\d\p{L}])"
 PERIOD_MODIFIER = "|".join(PERIOD_MODIFIER_OFFSETS)
 # [Qq] excluded so that a digit following an invalid quarter (e.g. "Q5 2024") cannot
 # be consumed by numeric patterns like xxf_xxf_xxf.
@@ -166,24 +171,7 @@ MONTH_DD = rf"""
 MONTH_YYYY = rf"""
     {MONTH_NAME_GROUP}
     {MONTH_DAY_SEPARATOR}
-    {YEAR_GROUP}
-    {END}
-"""
-# A year glued to the quarter digit ("Q31500") takes the narrow year range, as in MONTH_DD_YYYY
-QUARTER_YYYY = rf"""
-    {START}
-    (?P<quarter>{QUARTER})
-    (?:
-        {SEP_CHARS_REGEX}(?<!\d){YEAR_GROUP}
-        |{YEAR_NARROW_GROUP}
-    )
-    {END}
-"""
-YYYY_QUARTER = rf"""
-    {START}
-    {YEAR_GROUP}
-    {SEP_CHARS_REGEX}
-    (?P<quarter>{QUARTER})
+    (?:{YEAR_GROUP}|{APOSTROPHE_YEAR_GROUP})
     {END}
 """
 MODIFIED_WEEKDAY = rf"""
@@ -288,6 +276,139 @@ def _count_from_now_pattern(units: str) -> str:
 """
 
 
+PartOfYearKind: TypeAlias = Literal["quarter", "half"]
+
+
+@dataclass(frozen=True, slots=True)
+class _PartOfYear:
+    """How one kind of part of a year is written and how long it is.
+
+    Attributes:
+        letter: The letter before the part number, as in "Q3", in lowercase.
+        letter_after_number: The regex for the letter after the part number, as in "3Q".
+        numbers: The regex for the part numbers.
+        parts_per_year: How many parts make a year, which limits the ordinal words ("fourth quarter").
+        months_per_part: How many months each part covers.
+        any_year_range: Whether a year from 1000 to 2999 can follow the letter-first form ("Q2 1500"). Otherwise the year must be from 1900 to 2099, because the number is more often a count ("H2 1000 kg").
+    """
+
+    letter: str
+    letter_after_number: str
+    numbers: str
+    parts_per_year: int
+    months_per_part: Literal[3, 6]
+    any_year_range: bool
+
+
+_PARTS_OF_YEAR: dict[PartOfYearKind, _PartOfYear] = {
+    "quarter": _PartOfYear(
+        letter="q",
+        letter_after_number="q",
+        numbers="[1-4]",
+        parts_per_year=4,
+        months_per_part=3,
+        any_year_range=True,
+    ),
+    "half": _PartOfYear(
+        letter="h",
+        # Only a capital H: a lowercase h after a number is an hour ("1h30", "2h of downtime")
+        letter_after_number="(?-i:H)",
+        numbers="[12]",
+        parts_per_year=2,
+        months_per_part=6,
+        any_year_range=False,
+    ),
+}
+_PART_OF_YEAR_RESOLVERS: dict[PartOfYearKind, Resolver] = {
+    kind: part_of_year_resolver(part.months_per_part) for kind, part in _PARTS_OF_YEAR.items()
+}
+_PART_LETTERS = "".join(part.letter for part in _PARTS_OF_YEAR.values())
+# The end of a letter-first part that can take any year from 1000 to 2999 ("Q2"). Number-first
+# and word forms ("4Q 1500 units", "4th quarter 1500 fans") are more often followed by a count.
+_ANY_YEAR_RANGE_PART_ENDS = "|".join(
+    rf"{part.letter}\d" for part in _PARTS_OF_YEAR.values() if part.any_year_range
+)
+
+
+def _part_of_year_member(kind: PartOfYearKind) -> str:
+    """Match one kind of part of a year without its year, as in "Q3", "3Q", or "third quarter".
+
+    Args:
+        kind: Which part of a year to match.
+
+    Returns:
+        str: The regex for the part.
+    """
+    part = _PARTS_OF_YEAR[kind]
+    number = f"(?P<part_number>{part.numbers})"
+    ordinal_words = "|".join(ORDINAL_DAY_WORDS_IN_ORDER[: part.parts_per_year])
+    return rf"""(?:
+        {part.letter}{number}
+        |{number}{part.letter_after_number}
+        |(?:{number}(?:{DIGIT_SUFFIXES})|(?P<part_ordinal>{ordinal_words})){SEP_CLASS}+{kind}
+    )"""
+
+
+_ISO_WEEK_NUMBER = r"5[0-3]|[1-4]\d|0[1-9]"
+# An ISO week is a part of a year too, so it shares the part-of-year families and their scan cost.
+# A bare "W" needs a two-digit week, as ISO 8601 writes it, so tax forms ("W2 2024") do not match.
+# After the year, a hyphen starts a day within the week ("2024-W23-2"), which is not matched.
+_ISO_WEEK_MEMBERS: dict[str, str] = {
+    "part_year": (
+        rf"w(?:eek{SEP_CLASS}+(?P<iso_week>{_ISO_WEEK_NUMBER}|[1-9])|(?P<iso_week>{_ISO_WEEK_NUMBER}))"
+    ),
+    "year_part": rf"w(?P<iso_week>{_ISO_WEEK_NUMBER})(?!-)",
+}
+
+
+def _part_year_pattern(parts: str) -> str:
+    """Match a part of a year before its year, such as "Q3 2024", "H1'24", "1H24", "third quarter of 2024", or "week 23 2024".
+
+    Only a letter-first part whose kind allows any year range, divided from its year without a comma, takes a year from 1000 to 2999 ("Q2 1500"). Other parts, and parts followed by a comma, take the narrow year range, because the number is more often a count ("H2 1000 kg", "in week 3, 1500 users"). A two-digit year can be glued only to a number-first part ("4Q23"), because "Q423" could also be a quarter and a longer number.
+
+    The pattern skips START, so a number before the part ("table 3 week 12 2024") does not stop it. Its own guard rejects a part inside a longer word.
+
+    Args:
+        parts: The alternation of part kinds, each in its own pattern group.
+
+    Returns:
+        str: The regex for the part and year.
+    """
+    # Letters before the part belong to a longer word ("CH1") and "<" or "</" to an HTML tag ("<h1")
+    return rf"""
+    (?<![\w<]|</)
+    {parts}
+    (?:
+        (?<={_ANY_YEAR_RANGE_PART_ENDS})(?:{SEP_CLASS_WITHOUT_COMMA}+of)?{SEP_CLASS_WITHOUT_COMMA}+?(?<!\d){YEAR_GROUP}
+        |(?:{SEP_CLASS}+of)?{SEP_CHARS_REGEX}(?<!\d){YEAR_NARROW_GROUP}
+        |{SEP_CHARS_REGEX}{APOSTROPHE_YEAR_GROUP}
+        |(?<=[{_PART_LETTERS}]\d){YEAR_NARROW_GROUP}
+        |(?<=\d[{_PART_LETTERS}])(?P<year>\d\d)(?!\p{{L}})
+    )
+    {END}
+"""
+
+
+def _year_part_pattern(parts: str) -> str:
+    """Match a year before a part of that year, such as "2024 Q3", "2024-H1", or "2024-W23".
+
+    Args:
+        parts: The alternation of part kinds, each in its own pattern group.
+
+    Returns:
+        str: The regex for the year and part.
+    """
+    # A digit glued to the year belongs to a longer number ("20243Q"), not to the part
+    return rf"""
+    {START}
+    {YEAR_GROUP}
+    {SEP_CHARS_REGEX}
+    (?:(?<!\d)|(?=\p{{L}}))
+    {parts}(?!\w)
+    {END}
+"""
+
+
 # Each family compiles into one shared pattern with one table entry, and one group, per unit.
 # Compiling each unit as its own top-level alternative makes the scan many times slower.
 _FAMILY_PATTERNS: dict[str, Callable[[str], str]] = {
@@ -295,6 +416,8 @@ _FAMILY_PATTERNS: dict[str, Callable[[str], str]] = {
     "count_ago": _count_ago_pattern,
     "count_in": _count_in_pattern,
     "count_from_now": _count_from_now_pattern,
+    "part_year": _part_year_pattern,
+    "year_part": _year_part_pattern,
 }
 _COUNT_DIRECTIONS: dict[str, Direction] = {"count_ago": -1, "count_in": 1, "count_from_now": 1}
 
@@ -466,17 +589,28 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
             for family, direction in _COUNT_DIRECTIONS.items()
             for unit in TIME_UNITS
         ),
-        DatePattern(
-            name="quarter_year",
-            regex=QUARTER_YYYY,
-            resolver=resolve_calendar_date,
-            precision="quarter",
-        ),
-        DatePattern(
-            name="year_quarter",
-            regex=YYYY_QUARTER,
-            resolver=resolve_calendar_date,
-            precision="quarter",
+        *(
+            pattern
+            for family in ("part_year", "year_part")
+            for pattern in (
+                *(
+                    DatePattern(
+                        name=f"{family}_{kind}",
+                        regex=_part_of_year_member(kind),
+                        resolver=_PART_OF_YEAR_RESOLVERS[kind],
+                        precision=kind,
+                        family=family,
+                    )
+                    for kind in _PARTS_OF_YEAR
+                ),
+                DatePattern(
+                    name=f"{family}_iso_week",
+                    regex=_ISO_WEEK_MEMBERS[family],
+                    resolver=resolve_iso_week,
+                    precision="week",
+                    family=family,
+                ),
+            )
         ),
         DatePattern(
             name="modified_weekday",

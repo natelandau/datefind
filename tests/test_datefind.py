@@ -57,6 +57,8 @@ def test_short_digit_dates(
         # The window follows the reference date, not the clock
         ("march 3rd 39", date(1990, 1, 1), date(2039, 3, 3)),
         ("march 3rd 40", date(1990, 1, 1), date(1940, 3, 3)),
+        ("Q4'75", date(2026, 11, 23), date(2075, 10, 1)),
+        ("Q4'76", date(2026, 11, 23), date(1976, 10, 1)),
     ],
 )
 def test_two_digit_year_century(text: str, now: date, expected: date, debug) -> None:
@@ -249,6 +251,73 @@ def test_find_dates_with_reference_date(
         ("2024-Q4", [datetime(2024, 10, 1)]),
         ("Q5 2024", []),
         ("Q1", []),
+        # Quarter and half-year forms
+        ("2nd quarter of 2024", [datetime(2024, 4, 1)]),
+        ("second quarter 2024", [datetime(2024, 4, 1)]),
+        ("Q4'23", [datetime(2023, 10, 1)]),
+        ("Q4 '23", [datetime(2023, 10, 1)]),
+        ("4Q23", [datetime(2023, 10, 1)]),
+        ("4Q 2023", [datetime(2023, 10, 1)]),
+        ("H1 2024", [datetime(2024, 1, 1)]),
+        ("2024 H2", [datetime(2024, 7, 1)]),
+        ("H1'24", [datetime(2024, 1, 1)]),
+        ("1H 2024", [datetime(2024, 1, 1)]),
+        ("2H24", [datetime(2024, 7, 1)]),
+        ("first half of 2024", [datetime(2024, 1, 1)]),
+        ("2nd half 2024", [datetime(2024, 7, 1)]),
+        ("H3 2024", []),
+        ("5th quarter of 2024", []),
+        ("H2", []),
+        ("2nd quarter", []),
+        # An ISO week gives its Monday
+        ("2024-W23", [datetime(2024, 6, 3)]),
+        ("2024W23", [datetime(2024, 6, 3)]),
+        ("W23 2024", [datetime(2024, 6, 3)]),
+        ("week 23 2024", [datetime(2024, 6, 3)]),
+        ("week 23 of 2024", [datetime(2024, 6, 3)]),
+        ("week 12 2024", [datetime(2024, 3, 18)]),
+        ("W23 '24", [datetime(2024, 6, 3)]),
+        ("2026-W01", [datetime(2025, 12, 29)]),
+        ("2020-W53", [datetime(2020, 12, 28)]),
+        ("2021-W53", []),
+        ("2024-W54", []),
+        ("week 23", []),
+        ("W23", []),
+        ("2024-W23-2", []),
+        # An HTML heading tag or a longer word is not a half year
+        ("<h1 2024", []),
+        ("</h1 2024", []),
+        ("CH1 2024", []),
+        # Durations are not half years: a number-first half needs a capital H
+        ("1H 20", []),
+        ("2h 30m", []),
+        ("1h20", []),
+        ("Total time 1h45m.", []),
+        ("step 1h 2024", []),
+        ("In 2020 2h of downtime", []),
+        # A count after the part is not its year
+        ("1 quarter 2024", []),
+        ("3 quarter of 2024", []),
+        ("In week 3, 1500 users signed up", []),
+        ("In the first half, 1200 people came", []),
+        ("H2 1000 kg of hydrogen", []),
+        ("H1 1080p", []),
+        ("Q3, 1500 units", []),
+        ("4Q 1500 units", []),
+        ("4th quarter 1500 fans left", []),
+        ("Q3, 2024", [datetime(2024, 7, 1)]),
+        # A year glued to a number-first part takes the narrow range, like "Q31500"
+        ("4Q1500", []),
+        ("4Q2024", [datetime(2024, 10, 1)]),
+        # Digits glued to a year before a number-first part belong to a longer number
+        ("SKU 20243Q", []),
+        ("2024Q3", [datetime(2024, 7, 1)]),
+        # An apostrophe and two digits before a letter name a decade, not a year
+        ("Jan '90s fashion", []),
+        ("Q3 '90s", []),
+        # A bare W needs a two-digit week, so tax forms are not weeks
+        ("Attach your W2 2024 form", []),
+        ("week 5 2024", [datetime(2024, 1, 29)]),
         # Bare weekday — next occurrence
         ("Monday", [datetime(2024, 3, 4)]),
         ("Friday", [datetime(2024, 3, 8)]),
@@ -355,6 +424,11 @@ def test_find_dates_with_reference_date(
         # An apostrophe marks a two-digit year
         ("Jan 5 '24", [datetime(2024, 1, 5)]),
         ("Jan 5 \u201924", [datetime(2024, 1, 5)]),
+        ("Jan '24", [datetime(2024, 1, 1)]),
+        ("January '24", [datetime(2024, 1, 1)]),
+        ("Jan \u201924", [datetime(2024, 1, 1)]),
+        # Without an apostrophe, a number after a month name is a day
+        ("Jan 24", [datetime(2024, 1, 24)]),
         # A decimal number before a comma and a number is not a date
         ("3.8, 10", []),
         ("3-8, 10", []),
@@ -411,6 +485,10 @@ def test_find_dates(text, expected, debug):
         ("next month", "month"),
         ("Q1 2025", "quarter"),
         ("2025 Q1", "quarter"),
+        ("2nd quarter of 2025", "quarter"),
+        ("H1 2025", "half"),
+        ("2025-W10", "week"),
+        ("Mar '25", "month"),
         ("this year", "year"),
     ],
 )
@@ -700,6 +778,18 @@ def test_find_dates_followed_by_time(
             "3 years from 2020-01-01 to 2023-01-01",
             [("2020-01-01", date(2020, 1, 1)), ("2023-01-01", date(2023, 1, 1))],
         ),
+        # A half year inside a sentence
+        ("revenue rose in H1 2024.", [("H1 2024", date(2024, 1, 1))]),
+        # A decade after a day is not its year
+        ("Jan 5 '90s", [("Jan 5", date(2024, 1, 5))]),
+        # A number before a part of a year does not stop it from matching
+        ("Table 3 week 12 2024", [("week 12 2024", date(2024, 3, 18))]),
+        ("Up 5 first quarter 2024", [("first quarter 2024", date(2024, 1, 1))]),
+        (
+            "H1 2024 H2 2024",
+            [("H1 2024", date(2024, 1, 1)), ("H2 2024", date(2024, 7, 1))],
+        ),
+        ("Revenue 2023 H1 2024 down", [("H1 2024", date(2024, 1, 1))]),
         # A weekday not directly before a date stays a date of its own
         (
             "Monday, then January 5",

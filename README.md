@@ -2,7 +2,7 @@
 
 # datefind
 
-Find the dates in English text. `datefind` returns each date with the text that matched, its position in the text, and how precise the text is (a day, a week, a month, a quarter, or a year).
+Find the dates in English text. `datefind` returns each date with the text that matched, its position in the text, and how precise the text is (a day, a week, a month, a quarter, a half year, or a year).
 
 ```python
 from datetime import date
@@ -45,8 +45,14 @@ The examples use `now=date(2024, 3, 14)`, a Thursday.
 |                          | `twenty fifth of March`     | 2024-03-25 | day       |
 |                          | `March 5`                   | 2024-03-05 | day       |
 | Month and year           | `March 2025`                | 2025-03-01 | month     |
+|                          | `Jan '24`                   | 2024-01-01 | month     |
 |                          | `12/2024`                   | 2024-12-01 | month     |
 | Quarter                  | `Q3 2024`, `2024 Q3`        | 2024-07-01 | quarter   |
+|                          | `3rd quarter of 2024`       | 2024-07-01 | quarter   |
+|                          | `Q3'24`, `3Q24`             | 2024-07-01 | quarter   |
+| Half year                | `H2 2024`, `2024 H2`        | 2024-07-01 | half      |
+|                          | `second half of 2024`       | 2024-07-01 | half      |
+| ISO week                 | `2024-W23`, `week 23 2024`  | 2024-06-03 | week      |
 | Relative word            | `today`                     | 2024-03-14 | day       |
 |                          | `day after tomorrow`        | 2024-03-16 | day       |
 |                          | `next week`                 | 2024-03-21 | week      |
@@ -83,7 +89,7 @@ Each `FoundDate` has these fields:
 - `datetime` - The date as a `datetime` at midnight in `tz`.
 - `match` - The text that matched, taken from the original text.
 - `span` - The start and end positions of `match` in the original text.
-- `precision` - The unit of time that the text names: `day`, `week`, `month`, `quarter`, or `year`.
+- `precision` - The unit of time that the text names: `day`, `week`, `month`, `quarter`, `half`, or `year`.
 
 ## How dates are read
 
@@ -104,12 +110,13 @@ A date that cannot be real in the chosen order, such as `13/01/2024` with `first
 - Dates with a month name accept years from 1000 to 2999, such as `March 1105` or `dec 31 1899`.
 - All-number dates with a day, a month, and a year accept years from 1000 to 2999 when `/`, `-`, or `.` divides the parts, such as `12/25/1850`.
 - Every other all-number date must have a year from 1900 to 2099. This applies to dates divided by spaces, a month and year without a day such as `12/2024`, and runs of digits. This rule keeps counts, prices, and ranges such as `10 2500 sold`, `1500.05`, or `pages 10-1500` from matching as dates.
-- A two-digit year takes the century that puts it within 50 years of `now`. With `now` in 2026, `75` becomes 2075 and `76` becomes 1976. An apostrophe can mark a two-digit year, as in `Jan 5 '24`.
+- A two-digit year takes the century that puts it within 50 years of `now`. With `now` in 2026, `75` becomes 2075 and `76` becomes 1976. An apostrophe can mark a two-digit year, as in `Jan 5 '24`, `Jan '24`, or `Q3 '24`.
 
 ### Missing parts
 
 - A date without a year takes the year of `now`. `March 5` with `now` in 2024 gives March 5, 2024.
-- A month, quarter, or year without a day gives the first day of that period. `March 2025` gives March 1, 2025, and `Q3 2024` gives July 1, 2024.
+- A month, quarter, half year, or year without a day gives the first day of that period. `March 2025` gives March 1, 2025, and `Q3 2024` gives July 1, 2024.
+- An ISO week gives the Monday of that week. `2024-W23` gives June 3, 2024. A week that does not exist in its year, such as `2021-W53`, gives no date.
 
 ### Relative dates
 
