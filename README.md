@@ -2,7 +2,7 @@
 
 # datefind
 
-Find the dates in English text. `datefind` returns each date with the text that matched, its position in the text, and how precise the text is (a day, a week, a month, a quarter, or a year).
+Find the dates in English text. `datefind` returns each date with the text that matched, its position in the text, and how precise the text is (a day, a week, a month, a quarter, a half year, or a year).
 
 ```python
 from datetime import date
@@ -47,6 +47,10 @@ The examples use `now=date(2024, 3, 14)`, a Thursday.
 | Month and year           | `March 2025`                | 2025-03-01 | month     |
 |                          | `12/2024`                   | 2024-12-01 | month     |
 | Quarter                  | `Q3 2024`, `2024 Q3`        | 2024-07-01 | quarter   |
+|                          | `3rd quarter of 2024`       | 2024-07-01 | quarter   |
+|                          | `Q3'24`, `3Q24`             | 2024-07-01 | quarter   |
+| Half year                | `H2 2024`, `2024 H2`        | 2024-07-01 | half      |
+|                          | `second half of 2024`       | 2024-07-01 | half      |
 | Relative word            | `today`                     | 2024-03-14 | day       |
 |                          | `day after tomorrow`        | 2024-03-16 | day       |
 |                          | `next week`                 | 2024-03-21 | week      |
@@ -83,7 +87,7 @@ Each `FoundDate` has these fields:
 - `datetime` - The date as a `datetime` at midnight in `tz`.
 - `match` - The text that matched, taken from the original text.
 - `span` - The start and end positions of `match` in the original text.
-- `precision` - The unit of time that the text names: `day`, `week`, `month`, `quarter`, or `year`.
+- `precision` - The unit of time that the text names: `day`, `week`, `month`, `quarter`, `half`, or `year`.
 
 ## How dates are read
 
@@ -109,7 +113,7 @@ A date that cannot be real in the chosen order, such as `13/01/2024` with `first
 ### Missing parts
 
 - A date without a year takes the year of `now`. `March 5` with `now` in 2024 gives March 5, 2024.
-- A month, quarter, or year without a day gives the first day of that period. `March 2025` gives March 1, 2025, and `Q3 2024` gives July 1, 2024.
+- A month, quarter, half year, or year without a day gives the first day of that period. `March 2025` gives March 1, 2025, and `Q3 2024` gives July 1, 2024.
 
 ### Relative dates
 

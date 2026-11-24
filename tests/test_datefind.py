@@ -57,6 +57,8 @@ def test_short_digit_dates(
         # The window follows the reference date, not the clock
         ("march 3rd 39", date(1990, 1, 1), date(2039, 3, 3)),
         ("march 3rd 40", date(1990, 1, 1), date(1940, 3, 3)),
+        ("Q4'75", date(2026, 11, 23), date(2075, 10, 1)),
+        ("Q4'76", date(2026, 11, 23), date(1976, 10, 1)),
     ],
 )
 def test_two_digit_year_century(text: str, now: date, expected: date, debug) -> None:
@@ -249,6 +251,31 @@ def test_find_dates_with_reference_date(
         ("2024-Q4", [datetime(2024, 10, 1)]),
         ("Q5 2024", []),
         ("Q1", []),
+        # Quarter and half-year forms
+        ("2nd quarter of 2024", [datetime(2024, 4, 1)]),
+        ("second quarter 2024", [datetime(2024, 4, 1)]),
+        ("Q4'23", [datetime(2023, 10, 1)]),
+        ("Q4 '23", [datetime(2023, 10, 1)]),
+        ("4Q23", [datetime(2023, 10, 1)]),
+        ("4Q 2023", [datetime(2023, 10, 1)]),
+        ("H1 2024", [datetime(2024, 1, 1)]),
+        ("2024 H2", [datetime(2024, 7, 1)]),
+        ("H1'24", [datetime(2024, 1, 1)]),
+        ("1H 2024", [datetime(2024, 1, 1)]),
+        ("2H24", [datetime(2024, 7, 1)]),
+        ("first half of 2024", [datetime(2024, 1, 1)]),
+        ("2nd half 2024", [datetime(2024, 7, 1)]),
+        ("H3 2024", []),
+        ("5th quarter of 2024", []),
+        ("H2", []),
+        ("2nd quarter", []),
+        # An HTML heading tag or a longer word is not a half year
+        ("<h1 2024", []),
+        ("</h1 2024", []),
+        ("CH1 2024", []),
+        # Durations are not half years
+        ("1H 20", []),
+        ("2h 30m", []),
         # Bare weekday — next occurrence
         ("Monday", [datetime(2024, 3, 4)]),
         ("Friday", [datetime(2024, 3, 8)]),
@@ -411,6 +438,8 @@ def test_find_dates(text, expected, debug):
         ("next month", "month"),
         ("Q1 2025", "quarter"),
         ("2025 Q1", "quarter"),
+        ("2nd quarter of 2025", "quarter"),
+        ("H1 2025", "half"),
         ("this year", "year"),
     ],
 )
@@ -700,6 +729,8 @@ def test_find_dates_followed_by_time(
             "3 years from 2020-01-01 to 2023-01-01",
             [("2020-01-01", date(2020, 1, 1)), ("2023-01-01", date(2023, 1, 1))],
         ),
+        # A half year inside a sentence
+        ("revenue rose in H1 2024.", [("H1 2024", date(2024, 1, 1))]),
         # A weekday not directly before a date stays a date of its own
         (
             "Monday, then January 5",

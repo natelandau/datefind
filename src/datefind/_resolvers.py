@@ -15,7 +15,7 @@ MatchGroups: TypeAlias = Mapping[str, str | None]
 TimeUnit: TypeAlias = Literal["day", "week", "month", "year"]
 # How much of the date the matched text pins down. A counted offset such as "3 months ago"
 # lands on one day; a named period such as "last month" names only the month.
-DatePrecision: TypeAlias = Literal[TimeUnit, "quarter"]
+DatePrecision: TypeAlias = Literal[TimeUnit, "quarter", "half"]
 Direction: TypeAlias = Literal[-1, 1]
 TIME_UNITS: tuple[TimeUnit, ...] = get_args(TimeUnit)
 _TableValue = TypeVar("_TableValue")
@@ -183,9 +183,7 @@ def _year_number(groups: MatchGroups, today: date) -> int | None:
 
 
 def _month_number(groups: MatchGroups) -> int | None:
-    """Read the month from a quarter, a month name, or a month number."""
-    if quarter := groups.get("quarter"):
-        return (int(quarter[-1]) - 1) * 3 + 1
+    """Read the month from a month name or a month number."""
     if month_name := groups.get("month_name"):
         return _lookup_word(table=_MONTH_NUMBERS, text=month_name, prefix_length=3)
     if month := groups.get("month"):
@@ -229,6 +227,29 @@ def resolve_calendar_date(groups: MatchGroups, today: date) -> date | None:
         )
     except ValueError:
         return None
+
+
+def part_of_year_resolver(months_per_part: Literal[3, 6]) -> Resolver:
+    """Create a resolver for a numbered part of a year, such as a quarter ("Q3 2024") or a half ("H1 2024").
+
+    Args:
+        months_per_part: How many months each part covers: 3 for a quarter, 6 for a half.
+
+    Returns:
+        Resolver: A resolver that gives the first day of the matched part.
+    """
+
+    def resolve(*, groups: MatchGroups, today: date) -> date:
+        if part_ordinal := groups.get("part_ordinal"):
+            part = _lookup_word(table=ORDINAL_DAY_NUMBERS, text=part_ordinal)
+        else:
+            part = int(_required_group(groups=groups, name="part_number"))
+        if (year := _year_number(groups=groups, today=today)) is None:
+            msg = f"Expected group 'year' in the match, got {groups.get('year')!r}"
+            raise RuntimeError(msg)
+        return date(year=year, month=(part - 1) * months_per_part + 1, day=1)
+
+    return resolve
 
 
 def weekday_number(name: str) -> int:
