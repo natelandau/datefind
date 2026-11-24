@@ -23,7 +23,7 @@
     name = "datefind"
     readme = "README.md"
     requires-python = ">=3.11"
-    version = "0.6.0"
+    version = "1.0.0"
 
     [project.urls]
         Changelog  = "https://github.com/natelandau/datefind/blob/main/CHANGELOG.md"
