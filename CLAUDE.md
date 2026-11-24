@@ -1,6 +1,6 @@
 # datefind
 
-Library that finds dates in free text. Public API: `find_dates`, `FoundDate`, and the `DatePrecision` type, exported from `src/datefind/__init__.py`. Every `_`-prefixed module is private.
+Library that finds dates in free text. Public API: `find_dates`, `find_date`, `FoundDate`, and the `DatePrecision` and `FoundDateDict` types, exported from `src/datefind/__init__.py`. Every `_`-prefixed module is private.
 
 ## Commands
 
@@ -20,7 +20,7 @@ Library that finds dates in free text. Public API: `find_dates`, `FoundDate`, an
 
 - New information about a match: a new `FoundDate` field. Never an option that changes what `find_dates` yields (a tuple, an extra item).
 - An option whose `False` is unclear, or with more than two choices: a string value such as `prefer="past" | "future" | "nearest"`, not a boolean.
-- No dates found: yield nothing. Never return or yield `None`.
+- No dates found: `find_dates` yields nothing, never `None`. Only `find_date`, which returns one result, returns `None`.
 
 ## Tests
 

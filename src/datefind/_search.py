@@ -1,8 +1,9 @@
 """Scan text with the combined date regex and resolve each match."""
 
+import datetime as dt
 from collections.abc import Generator
 from dataclasses import dataclass
-from datetime import date, datetime, time, tzinfo
+from typing import TypedDict, assert_never
 
 import regex as re
 
@@ -13,7 +14,12 @@ from datefind._fragments import (
     WEEKDAY_ABBREVIATIONS_THAT_ARE_WORDS,
     FirstNumber,
 )
-from datefind._patterns import BARE_WEEKDAY_PATTERN_NAME, compile_date_regex, pattern_table
+from datefind._patterns import (
+    BARE_WEEKDAY_PATTERN_NAME,
+    PARTS_OF_YEAR,
+    compile_date_regex,
+    pattern_table,
+)
 from datefind._resolvers import TIME_UNITS, DatePrecision, offset_date, weekday_number
 
 # A standalone "v" or "version" marks a version number ("v2.1.1500"), not a date. Checked
@@ -61,7 +67,17 @@ _RANGE_CONTINUES = re.compile(
 )
 
 
-@dataclass
+class FoundDateDict(TypedDict):
+    """Hold a found date as plain values that serialize to JSON."""
+
+    value: str
+    date: str
+    precision: DatePrecision
+    match: str
+    span: list[int]
+
+
+@dataclass(frozen=True, slots=True)
 class FoundDate:
     """Store information about a date found in text.
 
@@ -70,15 +86,57 @@ class FoundDate:
         match (str): The specific text that matched the date pattern
         span (tuple[int, int]): The start and end positions of the match in the text
         precision (DatePrecision): The unit of time the text names: "day", "week", "month", "quarter", "half", or "year". An explicit period returns its first day ("March 2025" gives March 1). A period relative to the reference day returns the day one period away ("next month" on November 23 gives December 23)
+        date (date): The calendar day of `datetime`
+        value (str): The day and precision as one standard string: "2024-03-05", "2024-W10", "2024-03", "2024-Q1", "2024-H1", or "2024"
     """
 
-    datetime: datetime
+    datetime: dt.datetime
     match: str
     span: tuple[int, int]
     precision: DatePrecision = "day"
 
+    @property
+    def date(self) -> dt.date:
+        """Return the calendar day of the match, for callers that ignore the midnight time."""
+        return self.datetime.date()
 
-def reference_day(now: date | None, tz: tzinfo) -> date:
+    @property
+    def value(self) -> str:
+        """Return the day and precision as one standard string, so callers can compare or store a found date as one value."""
+        day = self.date
+        match self.precision:
+            case "day":
+                return day.isoformat()
+            case "week":
+                # The ISO week-numbering year, so a week starting in late December can belong to the next year
+                iso = day.isocalendar()
+                return f"{iso.year:04d}-W{iso.week:02d}"
+            case "month":
+                return f"{day.year:04d}-{day.month:02d}"
+            case "quarter" | "half":
+                part = PARTS_OF_YEAR[self.precision]
+                return f"{day.year:04d}-{part.letter.upper()}{(day.month - 1) // part.months_per_part + 1}"
+            case "year":
+                return f"{day.year:04d}"
+            case _:
+                assert_never(self.precision)
+
+    def as_dict(self) -> FoundDateDict:
+        """Convert the found date to plain values, for callers that store results or write JSON.
+
+        Returns:
+            FoundDateDict: The standard string, the ISO date with no time or timezone, the precision, the matched text, and the span as a list.
+        """
+        return FoundDateDict(
+            value=self.value,
+            date=self.date.isoformat(),
+            precision=self.precision,
+            match=self.match,
+            span=list(self.span),
+        )
+
+
+def reference_day(now: dt.date | None, tz: dt.tzinfo) -> dt.date:
     """Find the calendar day in `tz` that relative dates resolve against.
 
     Args:
@@ -89,13 +147,13 @@ def reference_day(now: date | None, tz: tzinfo) -> date:
         date: The reference day in `tz`.
     """
     if now is None:
-        return datetime.now(tz).date()
-    if isinstance(now, datetime):
+        return dt.datetime.now(tz).date()
+    if isinstance(now, dt.datetime):
         return now.astimezone(tz).date() if now.utcoffset() is not None else now.date()
     return now
 
 
-def _midnight(day: date, tz: tzinfo) -> datetime:
+def _midnight(day: dt.date, tz: dt.tzinfo) -> dt.datetime:
     """Build the first moment of `day` in `tz`, with the offset that applies on that day.
 
     Args:
@@ -105,7 +163,7 @@ def _midnight(day: date, tz: tzinfo) -> datetime:
     Returns:
         datetime: Midnight of `day` in `tz`.
     """
-    naive = datetime.combine(day, time())
+    naive = dt.datetime.combine(day, dt.time())
     # pytz zones attach their earliest historical offset (often LMT) unless they localize the time
     localize = getattr(tz, "localize", None)
     if callable(localize):
@@ -164,11 +222,11 @@ class _PrefixedDay:
 
     start: int
     claimed_start: int
-    day: date | None
+    day: dt.date | None
 
 
 def _read_prefixes(
-    text: str, start: int, end: int, day: date, earliest: int, *, year_stated: bool
+    text: str, start: int, end: int, day: dt.date, earliest: int, *, year_stated: bool
 ) -> _PrefixedDay:
     """Read a weekday ("Friday, Jan 5") and a counted offset ("2 weeks after Jan 5") before a calendar day.
 
@@ -219,7 +277,7 @@ def _read_prefixes(
 
 
 def search_dates(
-    text: str, tz: tzinfo, first: FirstNumber, now: date | None, *, short_digit_dates: bool
+    text: str, tz: dt.tzinfo, first: FirstNumber, now: dt.date | None, *, short_digit_dates: bool
 ) -> Generator[FoundDate, None, None]:
     """Yield every date in the text as midnight in `tz`, with relative dates resolved against `now`.
 

@@ -280,7 +280,7 @@ PartOfYearKind: TypeAlias = Literal["quarter", "half"]
 
 
 @dataclass(frozen=True, slots=True)
-class _PartOfYear:
+class PartOfYear:
     """How one kind of part of a year is written and how long it is.
 
     Attributes:
@@ -300,8 +300,8 @@ class _PartOfYear:
     any_year_range: bool
 
 
-_PARTS_OF_YEAR: dict[PartOfYearKind, _PartOfYear] = {
-    "quarter": _PartOfYear(
+PARTS_OF_YEAR: dict[PartOfYearKind, PartOfYear] = {
+    "quarter": PartOfYear(
         letter="q",
         letter_after_number="q",
         numbers="[1-4]",
@@ -309,7 +309,7 @@ _PARTS_OF_YEAR: dict[PartOfYearKind, _PartOfYear] = {
         months_per_part=3,
         any_year_range=True,
     ),
-    "half": _PartOfYear(
+    "half": PartOfYear(
         letter="h",
         # Only a capital H: a lowercase h after a number is an hour ("1h30", "2h of downtime")
         letter_after_number="(?-i:H)",
@@ -320,13 +320,13 @@ _PARTS_OF_YEAR: dict[PartOfYearKind, _PartOfYear] = {
     ),
 }
 _PART_OF_YEAR_RESOLVERS: dict[PartOfYearKind, Resolver] = {
-    kind: part_of_year_resolver(part.months_per_part) for kind, part in _PARTS_OF_YEAR.items()
+    kind: part_of_year_resolver(part.months_per_part) for kind, part in PARTS_OF_YEAR.items()
 }
-_PART_LETTERS = "".join(part.letter for part in _PARTS_OF_YEAR.values())
+_PART_LETTERS = "".join(part.letter for part in PARTS_OF_YEAR.values())
 # The end of a letter-first part that can take any year from 1000 to 2999 ("Q2"). Number-first
 # and word forms ("4Q 1500 units", "4th quarter 1500 fans") are more often followed by a count.
 _ANY_YEAR_RANGE_PART_ENDS = "|".join(
-    rf"{part.letter}\d" for part in _PARTS_OF_YEAR.values() if part.any_year_range
+    rf"{part.letter}\d" for part in PARTS_OF_YEAR.values() if part.any_year_range
 )
 
 
@@ -339,7 +339,7 @@ def _part_of_year_member(kind: PartOfYearKind) -> str:
     Returns:
         str: The regex for the part.
     """
-    part = _PARTS_OF_YEAR[kind]
+    part = PARTS_OF_YEAR[kind]
     number = f"(?P<part_number>{part.numbers})"
     ordinal_words = "|".join(ORDINAL_DAY_WORDS_IN_ORDER[: part.parts_per_year])
     return rf"""(?:
@@ -601,7 +601,7 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
                         precision=kind,
                         family=family,
                     )
-                    for kind in _PARTS_OF_YEAR
+                    for kind in PARTS_OF_YEAR
                 ),
                 DatePattern(
                     name=f"{family}_iso_week",

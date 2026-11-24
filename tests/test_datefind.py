@@ -1,6 +1,8 @@
 """Tests for datefind."""
 
+import json
 import re
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Literal
@@ -9,17 +11,18 @@ from zoneinfo import ZoneInfo
 import pytest
 from freezegun import freeze_time
 
-from datefind import DatePrecision, find_dates
+from datefind import find_date, find_dates
 
 fixture_file = Path(__file__).parent / "fixture.txt"
 
 
+@pytest.mark.parametrize("search", [find_dates, find_date])
 @pytest.mark.parametrize("invalid_tz", ["America/California", "/etc/localtime", "Foo/../Bar"])
-def test_raise_error_on_invalid_timezone(invalid_tz: str) -> None:
-    """Verify ValueError raised when invalid timezone provided."""
-    # When/Then: find_dates raises ValueError naming the timezone
+def test_raise_error_on_invalid_timezone(search: Callable[..., object], invalid_tz: str) -> None:
+    """Verify ValueError raised when invalid timezone provided, before any date is searched for."""
+    # When/Then: the search raises ValueError naming the timezone
     with pytest.raises(ValueError, match=f"Invalid timezone: {re.escape(invalid_tz)}"):
-        find_dates("Hello, world! Today is 2024-01-01.", tz=invalid_tz)
+        search("Hello, world! Today is 2024-01-01.", tz=invalid_tz)
 
 
 @pytest.mark.parametrize(
@@ -122,15 +125,15 @@ def test_find_dates_with_reference_date(
         ("hello world", []),
         ("2019-99-01", []),
         ("30122022", []),  # fails b/c month is first
-        ("01122024", [datetime(2024, 1, 12)]),
-        ("01:12:2024", [datetime(2024, 1, 12)]),
-        ("2024-01-12", [datetime(2024, 1, 12)]),
-        ("2024/01/12", [datetime(2024, 1, 12)]),
-        ("20240112", [datetime(2024, 1, 12)]),
-        ("2024-1-12", [datetime(2024, 1, 12)]),
-        ("2024/1/12", [datetime(2024, 1, 12)]),
+        ("01122024", ["2024-01-12"]),
+        ("01:12:2024", ["2024-01-12"]),
+        ("2024-01-12", ["2024-01-12"]),
+        ("2024/01/12", ["2024-01-12"]),
+        ("20240112", ["2024-01-12"]),
+        ("2024-1-12", ["2024-01-12"]),
+        ("2024/1/12", ["2024-01-12"]),
         ("2024112", []),
-        ("12112022", [datetime(2022, 12, 11)]),
+        ("12112022", ["2022-12-11"]),
         ("2111999", []),
         # Runs of 4 to 7 digits match only with short_digit_dates=True
         ("9819", []),
@@ -142,29 +145,29 @@ def test_find_dates_with_reference_date(
         ("1234567890", []),
         ("202405121", []),
         # A separator or month name marks the year, so years 1000 to 2999 match
-        ("dec 31 1899", [datetime(1899, 12, 31)]),
-        ("12/25/1850", [datetime(1850, 12, 25)]),
-        ("1850-12-25", [datetime(1850, 12, 25)]),
-        ("March 1105", [datetime(1105, 3, 1)]),
-        ("Q2 1500", [datetime(1500, 4, 1)]),
-        ("2999-12-31", [datetime(2999, 12, 31)]),
+        ("dec 31 1899", ["1899-12-31"]),
+        ("12/25/1850", ["1850-12-25"]),
+        ("1850-12-25", ["1850-12-25"]),
+        ("March 1105", ["1105-03"]),
+        ("Q2 1500", ["1500-Q2"]),
+        ("2999-12-31", ["2999-12-31"]),
         ("12/25/0999", []),
         ("3000-01-01", []),
         ("call 555-1212", []),
         # A year glued to the quarter needs a year from 1900 to 2099
         ("Q31500", []),
-        ("Q32024", [datetime(2024, 7, 1)]),
+        ("Q32024", ["2024-Q3"]),
         # A day glued to the year after a month name needs a year from 1900 to 2099
         ("March 31105", []),
         ("jan 12500 units", []),
         ("march 21500", []),
-        ("March 31999", [datetime(1999, 3, 3)]),
+        ("March 31999", ["1999-03-03"]),
         # In all-number dates, years outside 1900 to 2099 need a / - or . separator
         ("10 2500 sold", []),
         ("page 12, 1500 words", []),
         ("12 25 1850", []),
         ("1850 12 25", []),
-        ("12 . 25 . 1850", [datetime(1850, 12, 25)]),
+        ("12 . 25 . 1850", ["1850-12-25"]),
         # A numeric month and year without a day needs a year from 1900 to 2099
         ("12/1500", []),
         ("1850.12", []),
@@ -176,109 +179,102 @@ def test_find_dates_with_reference_date(
         ("2500 Market Street", []),
         ("1500 Mayfield Rd", []),
         ("Kumar 1500", []),
-        ("2022-12", [datetime(2022, 12, 1)]),
-        ("12 2022", [datetime(2022, 12, 1)]),
-        ("sep. 4", [datetime(2024, 9, 4)]),
-        ("sept. fifth", [datetime(2024, 9, 5)]),
-        ("2022, 12, 24", [datetime(2022, 12, 24)]),
-        ("23 march, 2020", [datetime(2020, 3, 23)]),
-        ("23rd, march-2020", [datetime(2020, 3, 23)]),
-        ("23rd of march 2020", [datetime(2020, 3, 23)]),
-        ("fifteenth march, 2025", [datetime(2025, 3, 15)]),
-        ("twenty fifth of march, 2025", [datetime(2025, 3, 25)]),
-        ("twentyfifth of march, 2025", [datetime(2025, 3, 25)]),
-        ("march 23", [datetime(2024, 3, 23)]),
-        ("march 23 2025", [datetime(2025, 3, 23)]),
-        ("march 21st 2025", [datetime(2025, 3, 21)]),
-        ("march the 23rd 2025", [datetime(2025, 3, 23)]),
-        ("march the 23rd of 2025", [datetime(2025, 3, 23)]),
-        ("march 23rd", [datetime(2024, 3, 23)]),
-        ("march the 22nd", [datetime(2024, 3, 22)]),
-        ("march twenty second", [datetime(2024, 3, 22)]),
-        ("march the twentysecond", [datetime(2024, 3, 22)]),
-        ("march the first of 2025", [datetime(2025, 3, 1)]),
+        ("2022-12", ["2022-12"]),
+        ("12 2022", ["2022-12"]),
+        ("03/2025", ["2025-03"]),
+        ("2025 march", ["2025-03"]),
+        ("2025 March 1", ["2025-03-01"]),
+        ("3/1/25", ["2025-03-01"]),
+        ("sep. 4", ["2024-09-04"]),
+        ("sept. fifth", ["2024-09-05"]),
+        ("2022, 12, 24", ["2022-12-24"]),
+        ("23 march, 2020", ["2020-03-23"]),
+        ("23rd, march-2020", ["2020-03-23"]),
+        ("23rd of march 2020", ["2020-03-23"]),
+        ("fifteenth march, 2025", ["2025-03-15"]),
+        ("twenty fifth of march, 2025", ["2025-03-25"]),
+        ("twentyfifth of march, 2025", ["2025-03-25"]),
+        ("march 23", ["2024-03-23"]),
+        ("march 23 2025", ["2025-03-23"]),
+        ("march 21st 2025", ["2025-03-21"]),
+        ("march the 23rd 2025", ["2025-03-23"]),
+        ("march the 23rd of 2025", ["2025-03-23"]),
+        ("march 23rd", ["2024-03-23"]),
+        ("march the 22nd", ["2024-03-22"]),
+        ("march twenty second", ["2024-03-22"]),
+        ("march the twentysecond", ["2024-03-22"]),
+        ("march the first of 2025", ["2025-03-01"]),
         # Day before month, without a year
-        ("14 feb", [datetime(2024, 2, 14)]),
-        ("25 December", [datetime(2024, 12, 25)]),
-        ("3rd march", [datetime(2024, 3, 3)]),
-        ("twenty fifth of december", [datetime(2024, 12, 25)]),
+        ("14 feb", ["2024-02-14"]),
+        ("25 December", ["2024-12-25"]),
+        ("3rd march", ["2024-03-03"]),
+        ("twenty fifth of december", ["2024-12-25"]),
         ("31 feb", []),
         # "may" is also a verb, so a bare number before it needs "of", "the", or an ordinal
-        ("2nd May", [datetime(2024, 5, 2)]),
-        ("2nd of May", [datetime(2024, 5, 2)]),
-        ("2 of may", [datetime(2024, 5, 2)]),
-        ("second of may", [datetime(2024, 5, 2)]),
+        ("2nd May", ["2024-05-02"]),
+        ("2nd of May", ["2024-05-02"]),
+        ("2 of may", ["2024-05-02"]),
+        ("second of may", ["2024-05-02"]),
         ("2 may", []),
         ("option 2 may work", []),
-        ("Mar 15, 24", [datetime(2024, 3, 15)]),
-        ("March 15 24", [datetime(2024, 3, 15)]),
-        ("march 3rd 99", [datetime(1999, 3, 3)]),
-        ("march 20 2025", [datetime(2025, 3, 20)]),
-        ("march 2025", [datetime(2025, 3, 1)]),
-        ("january, of 1998", [datetime(1998, 1, 1)]),
-        ("second january, of 1998", [datetime(1998, 1, 2)]),
-        ("today", [datetime(2024, 3, 1)]),
-        ("yesterday", [datetime(2024, 3, 1) - timedelta(days=1)]),
-        ("tomorrow", [datetime(2024, 3, 1) + timedelta(days=1)]),
-        ("last week", [datetime(2024, 3, 1) - timedelta(days=7)]),
-        ("next week", [datetime(2024, 3, 1) + timedelta(days=7)]),
-        (
-            "last month",
-            [datetime(2024, 3, 1).replace(month=2)],
-        ),
-        (
-            "next month",
-            [datetime(2024, 3, 1).replace(month=4)],
-        ),
-        (
-            "last year",
-            [datetime(2024, 3, 1).replace(year=2023)],
-        ),
-        (
-            "next year",
-            [datetime(2024, 3, 1).replace(year=2025)],
-        ),
-        ("this week", [datetime(2024, 3, 1)]),
-        ("this month", [datetime(2024, 3, 1)]),
-        ("this year", [datetime(2024, 3, 1)]),
-        ("Q1 2024", [datetime(2024, 1, 1)]),
-        ("Q2 2024", [datetime(2024, 4, 1)]),
-        ("Q3 2024", [datetime(2024, 7, 1)]),
-        ("Q4 2024", [datetime(2024, 10, 1)]),
-        ("q1 2024", [datetime(2024, 1, 1)]),
-        ("Q1-2024", [datetime(2024, 1, 1)]),
-        ("2024 Q1", [datetime(2024, 1, 1)]),
-        ("2024-Q4", [datetime(2024, 10, 1)]),
+        ("Mar 15, 24", ["2024-03-15"]),
+        ("March 15 24", ["2024-03-15"]),
+        ("march 3rd 99", ["1999-03-03"]),
+        ("march 20 2025", ["2025-03-20"]),
+        ("march 2025", ["2025-03"]),
+        ("january, of 1998", ["1998-01"]),
+        ("second january, of 1998", ["1998-01-02"]),
+        ("today", ["2024-03-01"]),
+        ("yesterday", ["2024-02-29"]),
+        ("tomorrow", ["2024-03-02"]),
+        ("last week", ["2024-W08"]),
+        ("next week", ["2024-W10"]),
+        ("last month", ["2024-02"]),
+        ("next month", ["2024-04"]),
+        ("last year", ["2023"]),
+        ("next year", ["2025"]),
+        ("this week", ["2024-W09"]),
+        ("this month", ["2024-03"]),
+        ("this year", ["2024"]),
+        ("Q1 2024", ["2024-Q1"]),
+        ("Q2 2024", ["2024-Q2"]),
+        ("Q3 2024", ["2024-Q3"]),
+        ("Q4 2024", ["2024-Q4"]),
+        ("q1 2024", ["2024-Q1"]),
+        ("Q1-2024", ["2024-Q1"]),
+        ("2024 Q1", ["2024-Q1"]),
+        ("2024-Q4", ["2024-Q4"]),
         ("Q5 2024", []),
         ("Q1", []),
         # Quarter and half-year forms
-        ("2nd quarter of 2024", [datetime(2024, 4, 1)]),
-        ("second quarter 2024", [datetime(2024, 4, 1)]),
-        ("Q4'23", [datetime(2023, 10, 1)]),
-        ("Q4 '23", [datetime(2023, 10, 1)]),
-        ("4Q23", [datetime(2023, 10, 1)]),
-        ("4Q 2023", [datetime(2023, 10, 1)]),
-        ("H1 2024", [datetime(2024, 1, 1)]),
-        ("2024 H2", [datetime(2024, 7, 1)]),
-        ("H1'24", [datetime(2024, 1, 1)]),
-        ("1H 2024", [datetime(2024, 1, 1)]),
-        ("2H24", [datetime(2024, 7, 1)]),
-        ("first half of 2024", [datetime(2024, 1, 1)]),
-        ("2nd half 2024", [datetime(2024, 7, 1)]),
+        ("2nd quarter of 2024", ["2024-Q2"]),
+        ("second quarter 2024", ["2024-Q2"]),
+        ("Q4'23", ["2023-Q4"]),
+        ("Q4 '23", ["2023-Q4"]),
+        ("4Q23", ["2023-Q4"]),
+        ("4Q 2023", ["2023-Q4"]),
+        ("H1 2024", ["2024-H1"]),
+        ("H2 2024", ["2024-H2"]),
+        ("2024 H2", ["2024-H2"]),
+        ("H1'24", ["2024-H1"]),
+        ("1H 2024", ["2024-H1"]),
+        ("2H24", ["2024-H2"]),
+        ("first half of 2024", ["2024-H1"]),
+        ("2nd half 2024", ["2024-H2"]),
         ("H3 2024", []),
         ("5th quarter of 2024", []),
         ("H2", []),
         ("2nd quarter", []),
         # An ISO week gives its Monday
-        ("2024-W23", [datetime(2024, 6, 3)]),
-        ("2024W23", [datetime(2024, 6, 3)]),
-        ("W23 2024", [datetime(2024, 6, 3)]),
-        ("week 23 2024", [datetime(2024, 6, 3)]),
-        ("week 23 of 2024", [datetime(2024, 6, 3)]),
-        ("week 12 2024", [datetime(2024, 3, 18)]),
-        ("W23 '24", [datetime(2024, 6, 3)]),
-        ("2026-W01", [datetime(2025, 12, 29)]),
-        ("2020-W53", [datetime(2020, 12, 28)]),
+        ("2024-W23", ["2024-W23"]),
+        ("2024W23", ["2024-W23"]),
+        ("W23 2024", ["2024-W23"]),
+        ("week 23 2024", ["2024-W23"]),
+        ("week 23 of 2024", ["2024-W23"]),
+        ("week 12 2024", ["2024-W12"]),
+        ("W23 '24", ["2024-W23"]),
+        ("2026-W01", ["2026-W01"]),
+        ("2020-W53", ["2020-W53"]),
         ("2021-W53", []),
         ("2024-W54", []),
         ("week 23", []),
@@ -305,34 +301,34 @@ def test_find_dates_with_reference_date(
         ("Q3, 1500 units", []),
         ("4Q 1500 units", []),
         ("4th quarter 1500 fans left", []),
-        ("Q3, 2024", [datetime(2024, 7, 1)]),
+        ("Q3, 2024", ["2024-Q3"]),
         # A year glued to a number-first part takes the narrow range, like "Q31500"
         ("4Q1500", []),
-        ("4Q2024", [datetime(2024, 10, 1)]),
+        ("4Q2024", ["2024-Q4"]),
         # Digits glued to a year before a number-first part belong to a longer number
         ("SKU 20243Q", []),
-        ("2024Q3", [datetime(2024, 7, 1)]),
+        ("2024Q3", ["2024-Q3"]),
         # An apostrophe and two digits before a letter name a decade, not a year
         ("Jan '90s fashion", []),
         ("Q3 '90s", []),
         # A bare W needs a two-digit week, so tax forms are not weeks
         ("Attach your W2 2024 form", []),
-        ("week 5 2024", [datetime(2024, 1, 29)]),
+        ("week 5 2024", ["2024-W05"]),
         # Bare weekday — next occurrence
-        ("Monday", [datetime(2024, 3, 4)]),
-        ("Friday", [datetime(2024, 3, 8)]),
-        ("mon", [datetime(2024, 3, 4)]),
-        ("sunday", [datetime(2024, 3, 3)]),
+        ("Monday", ["2024-03-04"]),
+        ("Friday", ["2024-03-08"]),
+        ("mon", ["2024-03-04"]),
+        ("sunday", ["2024-03-03"]),
         # Relative weekday
-        ("next Monday", [datetime(2024, 3, 4)]),
-        ("last Monday", [datetime(2024, 2, 26)]),
-        ("this Monday", [datetime(2024, 3, 4)]),
-        ("this Friday", [datetime(2024, 3, 1)]),
-        ("last Friday", [datetime(2024, 2, 23)]),
-        ("next Friday", [datetime(2024, 3, 8)]),
-        ("next sat", [datetime(2024, 3, 2)]),
-        ("last sun", [datetime(2024, 2, 25)]),
-        ("this wed", [datetime(2024, 3, 6)]),
+        ("next Monday", ["2024-03-04"]),
+        ("last Monday", ["2024-02-26"]),
+        ("this Monday", ["2024-03-04"]),
+        ("this Friday", ["2024-03-01"]),
+        ("last Friday", ["2024-02-23"]),
+        ("next Friday", ["2024-03-08"]),
+        ("next sat", ["2024-03-02"]),
+        ("last sun", ["2024-02-25"]),
+        ("this wed", ["2024-03-06"]),
         # Bare weekday substring prevention
         ("among friends", []),
         ("sunlight", []),
@@ -346,19 +342,19 @@ def test_find_dates_with_reference_date(
         ("V1.2.2024", []),
         ("Version: 1.2.2024", []),
         # Relative count patterns
-        ("3 days ago", [datetime(2024, 2, 27)]),
-        ("in 3 days", [datetime(2024, 3, 4)]),
-        ("3 days from now", [datetime(2024, 3, 4)]),
-        ("1 day ago", [datetime(2024, 2, 29)]),
-        ("2 weeks ago", [datetime(2024, 2, 16)]),
-        ("in 2 weeks", [datetime(2024, 3, 15)]),
-        ("2 weeks from now", [datetime(2024, 3, 15)]),
-        ("1 month ago", [datetime(2024, 2, 1)]),
-        ("in 2 months", [datetime(2024, 5, 1)]),
-        ("2 years ago", [datetime(2022, 3, 1)]),
-        ("in 1 year", [datetime(2025, 3, 1)]),
-        ("1 year from now", [datetime(2025, 3, 1)]),
-        ("0 days ago", [datetime(2024, 3, 1)]),
+        ("3 days ago", ["2024-02-27"]),
+        ("in 3 days", ["2024-03-04"]),
+        ("3 days from now", ["2024-03-04"]),
+        ("1 day ago", ["2024-02-29"]),
+        ("2 weeks ago", ["2024-02-16"]),
+        ("in 2 weeks", ["2024-03-15"]),
+        ("2 weeks from now", ["2024-03-15"]),
+        ("1 month ago", ["2024-02-01"]),
+        ("in 2 months", ["2024-05-01"]),
+        ("2 years ago", ["2022-03-01"]),
+        ("in 1 year", ["2025-03-01"]),
+        ("1 year from now", ["2025-03-01"]),
+        ("0 days ago", ["2024-03-01"]),
         ("days ago", []),
         ("in days", []),
         # Word-boundary anchoring for relative counts
@@ -381,30 +377,30 @@ def test_find_dates_with_reference_date(
         # A number followed by a year is not split into month, day, and two-digit year
         ("3, 2024", []),
         # Case-insensitive matching treats long s (U+017F) as "s" and dotted capital I (U+0130) as "i"
-        ("la\u017ft week", [datetime(2024, 2, 23)]),
-        ("th\u0130s month", [datetime(2024, 3, 1)]),
-        ("today\u017f", [datetime(2024, 3, 1)]),
-        ("fir\u017ft of march 2024", [datetime(2024, 3, 1)]),
-        ("\u017funday", [datetime(2024, 3, 3)]),
-        ("la\u017ft monday", [datetime(2024, 2, 26)]),
-        ("\u017feptember 5 2024", [datetime(2024, 9, 5)]),
-        ("in 2 day\u017f", [datetime(2024, 3, 3)]),
+        ("la\u017ft week", ["2024-W08"]),
+        ("th\u0130s month", ["2024-03"]),
+        ("today\u017f", ["2024-03-01"]),
+        ("fir\u017ft of march 2024", ["2024-03-01"]),
+        ("\u017funday", ["2024-03-03"]),
+        ("la\u017ft monday", ["2024-02-26"]),
+        ("\u017feptember 5 2024", ["2024-09-05"]),
+        ("in 2 day\u017f", ["2024-03-03"]),
         # A count too long to convert to an integer is not a date
         ("in " + "9" * 5000 + " days", []),
         # A weekday before a date is part of that date
-        ("Friday, January 5, 2024", [datetime(2024, 1, 5)]),
-        ("Wed, 03 Jan 2024", [datetime(2024, 1, 3)]),
-        ("Sat. 6 January", [datetime(2024, 1, 6)]),
-        ("Friday the 5th of January 2024", [datetime(2024, 1, 5)]),
-        ("Fri 01/05/2024", [datetime(2024, 1, 5)]),
-        ("Thursday 2024-01-04", [datetime(2024, 1, 4)]),
+        ("Friday, January 5, 2024", ["2024-01-05"]),
+        ("Wed, 03 Jan 2024", ["2024-01-03"]),
+        ("Sat. 6 January", ["2024-01-06"]),
+        ("Friday the 5th of January 2024", ["2024-01-05"]),
+        ("Fri 01/05/2024", ["2024-01-05"]),
+        ("Thursday 2024-01-04", ["2024-01-04"]),
         # Two days away
-        ("day after tomorrow", [datetime(2024, 3, 3)]),
-        ("day before yesterday", [datetime(2024, 2, 28)]),
+        ("day after tomorrow", ["2024-03-03"]),
+        ("day before yesterday", ["2024-02-28"]),
         # A day of the month relative to this month
-        ("3rd of next month", [datetime(2024, 4, 3)]),
-        ("twentieth of last month", [datetime(2024, 2, 20)]),
-        ("15 of this month", [datetime(2024, 3, 15)]),
+        ("3rd of next month", ["2024-04-03"]),
+        ("twentieth of last month", ["2024-02-20"]),
+        ("15 of this month", ["2024-03-15"]),
         ("31st of next month", []),
         # A day range after a month name is not a day and a two-digit year
         ("Jan 5-10", []),
@@ -413,92 +409,81 @@ def test_find_dates_with_reference_date(
         ("Jan 5\u201310, 2024", []),
         ("Jan 5 \u2013 10, 2024", []),
         ("Jan 5 to 10, 2024", []),
-        ("Jan-05-24", [datetime(2024, 1, 5)]),
-        ("Jan 05-24", [datetime(2024, 1, 5)]),
-        ("March 5-2024", [datetime(2024, 3, 5)]),
+        ("Jan-05-24", ["2024-01-05"]),
+        ("Jan 05-24", ["2024-01-05"]),
+        ("March 5-2024", ["2024-03-05"]),
         # Unicode spaces, dashes, apostrophes, and full-width digits read as their ASCII forms
-        ("January 5,\u00a02024", [datetime(2024, 1, 5)]),
-        ("Jan\u00a05, 2024", [datetime(2024, 1, 5)]),
-        ("2024\u201301\u201305", [datetime(2024, 1, 5)]),
-        ("\uff12\uff10\uff12\uff14-01-05", [datetime(2024, 1, 5)]),
+        ("January 5,\u00a02024", ["2024-01-05"]),
+        ("Jan\u00a05, 2024", ["2024-01-05"]),
+        ("2024\u201301\u201305", ["2024-01-05"]),
+        ("\uff12\uff10\uff12\uff14-01-05", ["2024-01-05"]),
         # An apostrophe marks a two-digit year
-        ("Jan 5 '24", [datetime(2024, 1, 5)]),
-        ("Jan 5 \u201924", [datetime(2024, 1, 5)]),
-        ("Jan '24", [datetime(2024, 1, 1)]),
-        ("January '24", [datetime(2024, 1, 1)]),
-        ("Jan \u201924", [datetime(2024, 1, 1)]),
+        ("Jan 5 '24", ["2024-01-05"]),
+        ("Jan 5 \u201924", ["2024-01-05"]),
+        ("Jan '24", ["2024-01"]),
+        ("January '24", ["2024-01"]),
+        ("Jan \u201924", ["2024-01"]),
         # Without an apostrophe, a number after a month name is a day
-        ("Jan 24", [datetime(2024, 1, 24)]),
+        ("Jan 24", ["2024-01-24"]),
         # A decimal number before a comma and a number is not a date
         ("3.8, 10", []),
         ("3-8, 10", []),
         ("3/8, 10", []),
         # A four-digit year after mixed separators still marks a date
-        ("12/25, 2024", [datetime(2024, 12, 25)]),
-        ("12-25 2024", [datetime(2024, 12, 25)]),
+        ("12/25, 2024", ["2024-12-25"]),
+        ("12-25 2024", ["2024-12-25"]),
         # A counted offset before a date shifts that date
-        ("2 weeks after Jan 5, 2024", [datetime(2024, 1, 19)]),
-        ("2 weeks after the 5th of January 2024", [datetime(2024, 1, 19)]),
-        ("2 weeks after Tuesday, Jan 5, 2024", [datetime(2024, 1, 19)]),
-        ("3 days before 2024-01-01", [datetime(2023, 12, 29)]),
+        ("2 weeks after Jan 5, 2024", ["2024-01-19"]),
+        ("2 weeks after the 5th of January 2024", ["2024-01-19"]),
+        ("2 weeks after Tuesday, Jan 5, 2024", ["2024-01-19"]),
+        ("3 days before 2024-01-01", ["2023-12-29"]),
         ("1 year from Feb 29, 2024", []),
     ],
 )
 @freeze_time("2024-03-01")
 def test_find_dates(text, expected, debug):
-    """Verify extracting dates from short text returns expected datetime objects."""
-    # Given: Text containing dates and expected datetime
-
+    """Verify extracting dates from short text returns the expected standard date strings."""
     # When: Finding dates in the text
     dates = list(find_dates(text, first="month", tz="UTC"))
 
-    # Then: Each found date matches expected datetime
-    assert len(dates) == len(expected)
-    for i, found in enumerate(dates):
-        assert found.datetime.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
+    # Then: each found date covers the whole text and has the expected standard string
+    assert [found.value for found in dates] == expected
+    for found in dates:
         assert found.match == text
         assert found.span == (0, len(text))
+
+
+def test_as_dict() -> None:
+    """Verify as_dict gives plain values that serialize to JSON."""
+    # Given: a date found in text
+    found = next(find_dates(text="Paid in March 2024.", tz="UTC", now=date(2026, 11, 23)))
+    expected = {
+        "value": "2024-03",
+        "date": "2024-03-01",
+        "precision": "month",
+        "match": "March 2024",
+        "span": [8, 18],
+    }
+
+    # When/Then: the dict holds plain values and survives a JSON round trip
+    assert found.as_dict() == expected
+    assert json.loads(json.dumps(found.as_dict())) == expected
 
 
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
-        ("March 1 2025", "day"),
-        ("1 March 2025", "day"),
-        ("2025 March 1", "day"),
-        ("March 1", "day"),
-        ("2025-03-01", "day"),
-        ("03/01/2025", "day"),
-        ("3/1/25", "day"),
-        ("20250301", "day"),
-        ("today", "day"),
-        ("3 months ago", "day"),
-        ("in 2 weeks", "day"),
-        ("1 year from now", "day"),
-        ("friday", "day"),
-        ("next friday", "day"),
-        ("last week", "week"),
-        ("march 2025", "month"),
-        ("2025 march", "month"),
-        ("2025-03", "month"),
-        ("03/2025", "month"),
-        ("next month", "month"),
-        ("Q1 2025", "quarter"),
-        ("2025 Q1", "quarter"),
-        ("2nd quarter of 2025", "quarter"),
-        ("H1 2025", "half"),
-        ("2025-W10", "week"),
-        ("Mar '25", "month"),
-        ("this year", "year"),
+        ("Due Jan 5, 2024 or Feb 1, 2024", "2024-01-05"),
+        ("no dates here", None),
     ],
 )
-def test_precision(text: str, expected: DatePrecision, debug) -> None:
-    """Verify each found date reports how much of the date its text pins down."""
-    # When: finding the date
-    dates = list(find_dates(text=text, tz="UTC", now=date(2026, 11, 23)))
+def test_find_date(text: str, expected: str | None) -> None:
+    """Verify find_date returns the first date in the text, or None when there is none."""
+    # When: finding the first date
+    found = find_date(text=text, tz="UTC", now=date(2026, 11, 23))
 
-    # Then: the whole text is one date with the expected precision
-    assert [(found.match, found.precision) for found in dates] == [(text, expected)]
+    # Then: it is the earliest date in the text, or None
+    assert (found.value if found else None) == expected
 
 
 @freeze_time("2024-03-01")

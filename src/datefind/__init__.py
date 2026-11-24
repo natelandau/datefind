@@ -9,9 +9,9 @@ from tzlocal import get_localzone
 
 from datefind._fragments import FirstNumber
 from datefind._resolvers import DatePrecision
-from datefind._search import FoundDate, search_dates
+from datefind._search import FoundDate, FoundDateDict, search_dates
 
-__all__ = ["DatePrecision", "FoundDate", "find_dates"]
+__all__ = ["DatePrecision", "FoundDate", "FoundDateDict", "find_date", "find_dates"]
 
 
 def find_dates(
@@ -59,4 +59,36 @@ def find_dates(
 
     return search_dates(
         text=text, tz=timezone, first=first_number, now=now, short_digit_dates=short_digit_dates
+    )
+
+
+def find_date(
+    text: str,
+    first: Literal["month", "day", "year"] = "month",
+    tz: str | tzinfo = "",
+    now: date | None = None,
+    *,
+    short_digit_dates: bool = False,
+) -> FoundDate | None:
+    """Find the first date in text, for callers that need only one date.
+
+    Search the same way as `find_dates` and stop at the first date found.
+
+    Args:
+        text (str): The text to search for a date
+        first (Literal["month", "day", "year"]): As for `find_dates`
+        tz (str | tzinfo): As for `find_dates`
+        now (date | None): As for `find_dates`
+        short_digit_dates (bool): As for `find_dates`
+
+    Returns:
+        FoundDate | None: The first date in the text, or None if the text has no date
+
+    Raises:
+        ValueError: If an invalid first parameter or timezone is provided
+        TypeError: If `now` is not a date, a datetime, or None
+    """
+    return next(
+        find_dates(text=text, first=first, tz=tz, now=now, short_digit_dates=short_digit_dates),
+        None,
     )
