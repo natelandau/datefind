@@ -15,6 +15,8 @@ SEP_CHARS = r"-\/:,._\+@ "  # Define separator chars for reuse
 SEP_CLASS = rf"[{SEP_CHARS}]"
 # The separators other than "-", which between a day and a number marks a range ("Jan 5-10")
 SEP_CLASS_WITHOUT_HYPHEN = rf"[{SEP_CHARS.removeprefix('-')}]"
+# The separators other than ",", which before a number often starts a count ("week 3, 1500 users")
+SEP_CLASS_WITHOUT_COMMA = rf"[{SEP_CHARS.replace(',', '')}]"
 # Separators that do not mark a numeric year ("12 25 2024"). "-", "/", and "." do, and
 # mixed with a weak separator they belong to other numbers ("3.8, 10", "pages 3-8, 10").
 WEAK_SEP_CLASS = "[" + "".join(char for char in SEP_CHARS if char not in "-/.") + "]"
@@ -58,7 +60,7 @@ MONTH_ABBREVIATIONS = r"jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec"
 MONTH = rf"{MONTH_FULL_NAMES}|(?<!\p{{L}})(?:{MONTH_ABBREVIATIONS})(?!\p{{L}})"
 # In day order, which is also the pattern's alternation order. A space marks where
 # compound ordinals accept a separator ("twenty first", "twenty-first", "twentyfirst").
-_ORDINAL_DAY_WORDS_IN_ORDER = (
+ORDINAL_DAY_WORDS_IN_ORDER = (
     "first",
     "second",
     "third",
@@ -94,10 +96,10 @@ _ORDINAL_DAY_WORDS_IN_ORDER = (
 # Keyed by the word with separators removed
 ORDINAL_DAY_NUMBERS: dict[str, int] = {
     word.replace(" ", ""): day
-    for day, word in enumerate(iterable=_ORDINAL_DAY_WORDS_IN_ORDER, start=1)
+    for day, word in enumerate(iterable=ORDINAL_DAY_WORDS_IN_ORDER, start=1)
 }
 ORDINAL_DAY_WORDS = "|".join(
-    word.replace(" ", SEP_CHARS_REGEX) for word in _ORDINAL_DAY_WORDS_IN_ORDER
+    word.replace(" ", SEP_CHARS_REGEX) for word in ORDINAL_DAY_WORDS_IN_ORDER
 )
 DIGIT_SUFFIXES = r"st|th|rd|nd"
 TODAY = r"today'?s?"

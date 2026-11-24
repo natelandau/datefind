@@ -173,25 +173,23 @@ def expand_two_digit_year(two_digit_year: int, reference_year: int) -> int:
     return year
 
 
+def _expand_year(year: str, today: date) -> int:
+    """Read matched year text, giving a two-digit year the century closest to `today`."""
+    if len(year) == 2:  # noqa: PLR2004
+        return expand_two_digit_year(two_digit_year=int(year), reference_year=today.year)
+    return int(year)
+
+
 def _year_number(groups: MatchGroups, today: date) -> int | None:
-    """Read the year, giving a two-digit year the century closest to `today`."""
+    """Read the year if the match has one, giving a two-digit year the century closest to `today`."""
     if year := groups.get("year"):
-        if len(year) == 2:  # noqa: PLR2004
-            return expand_two_digit_year(two_digit_year=int(year), reference_year=today.year)
-        return int(year)
+        return _expand_year(year=year, today=today)
     return None
 
 
 def _required_year(groups: MatchGroups, today: date) -> int:
-    """Read the year of a pattern that always matches one, giving a two-digit year the century closest to `today`.
-
-    Raises:
-        RuntimeError: If the year group is empty, which means a pattern and its resolver disagree.
-    """
-    if (year := _year_number(groups=groups, today=today)) is None:
-        msg = f"Expected group 'year' in the match, got {groups.get('year')!r}"
-        raise RuntimeError(msg)
-    return year
+    """Read the year of a pattern that always matches one, giving a two-digit year the century closest to `today`."""
+    return _expand_year(year=_required_group(groups=groups, name="year"), today=today)
 
 
 def _month_number(groups: MatchGroups) -> int | None:

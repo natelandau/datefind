@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import cache
 from itertools import groupby
-from typing import Literal
+from typing import Literal, TypeAlias
 
 import regex as re
 
@@ -21,10 +21,11 @@ from datefind._fragments import (
     MM_FLEXIBLE,
     MONTH,
     ORDINAL_DAY_WORDS,
+    ORDINAL_DAY_WORDS_IN_ORDER,
     PERIOD_MODIFIER_OFFSETS,
-    SEP_CHARS,
     SEP_CHARS_REGEX,
     SEP_CLASS,
+    SEP_CLASS_WITHOUT_COMMA,
     SEP_CLASS_WITHOUT_HYPHEN,
     TIME_OF_DAY,
     TODAY,
@@ -276,49 +277,62 @@ def _count_from_now_pattern(units: str) -> str:
 """
 
 
+PartOfYearKind: TypeAlias = Literal["quarter", "half"]
+
+
 @dataclass(frozen=True, slots=True)
 class _PartOfYear:
     """How one kind of part of a year is written and how long it is.
 
     Attributes:
-        letter: The letter before the part number, as in "Q3".
-        letter_after_number: The letter after the part number, as in "3Q".
+        letter: The letter before the part number, as in "Q3", in lowercase.
+        letter_after_number: The regex for the letter after the part number, as in "3Q".
         numbers: The regex for the part numbers.
-        ordinal_words: The regex for the part as an ordinal word, as in "second quarter".
-        unit_word: The word for the part, as in "third quarter".
+        ordinal_count: How many parts make a year, which limits the ordinal words ("fourth quarter").
         months_per_part: How many months each part covers.
+        any_year_range: Whether a year from 1000 to 2999 can follow ("Q2 1500"). Otherwise the year must be from 1900 to 2099, because the number is more often a count ("H2 1000 kg").
     """
 
     letter: str
     letter_after_number: str
     numbers: str
-    ordinal_words: str
-    unit_word: str
+    ordinal_count: int
     months_per_part: Literal[3, 6]
+    any_year_range: bool
 
 
-_PARTS_OF_YEAR: dict[Literal["quarter", "half"], _PartOfYear] = {
+_PARTS_OF_YEAR: dict[PartOfYearKind, _PartOfYear] = {
     "quarter": _PartOfYear(
         letter="q",
         letter_after_number="q",
         numbers="[1-4]",
-        ordinal_words="first|second|third|fourth",
-        unit_word="quarter",
+        ordinal_count=4,
         months_per_part=3,
+        any_year_range=True,
     ),
     "half": _PartOfYear(
         letter="h",
         # Only a capital H: a lowercase h after a number is an hour ("1h30", "2h of downtime")
         letter_after_number="(?-i:H)",
         numbers="[12]",
-        ordinal_words="first|second",
-        unit_word="half",
+        ordinal_count=2,
         months_per_part=6,
+        any_year_range=False,
     ),
 }
+_PART_OF_YEAR_RESOLVERS: dict[PartOfYearKind, Resolver] = {
+    kind: part_of_year_resolver(part.months_per_part) for kind, part in _PARTS_OF_YEAR.items()
+}
+_PART_LETTERS = "".join(part.letter for part in _PARTS_OF_YEAR.values())
+# The end of a part that can take any year from 1000 to 2999 ("Q2", "2Q", "second quarter")
+_ANY_YEAR_RANGE_PART_ENDS = "|".join(
+    rf"{part.letter}\d|\d{part.letter}|{kind}"
+    for kind, part in _PARTS_OF_YEAR.items()
+    if part.any_year_range
+)
 
 
-def _part_of_year_member(kind: Literal["quarter", "half"]) -> str:
+def _part_of_year_member(kind: PartOfYearKind) -> str:
     """Match one kind of part of a year without its year, as in "Q3", "3Q", or "third quarter".
 
     Args:
@@ -329,30 +343,30 @@ def _part_of_year_member(kind: Literal["quarter", "half"]) -> str:
     """
     part = _PARTS_OF_YEAR[kind]
     number = f"(?P<part_number>{part.numbers})"
+    ordinal_words = "|".join(ORDINAL_DAY_WORDS_IN_ORDER[: part.ordinal_count])
     return rf"""(?:
         {part.letter}{number}
         |{number}{part.letter_after_number}
-        |(?:{number}(?:{DIGIT_SUFFIXES})|(?P<part_ordinal>{part.ordinal_words})){SEP_CLASS}+{part.unit_word}
+        |(?:{number}(?:{DIGIT_SUFFIXES})|(?P<part_ordinal>{ordinal_words})){SEP_CLASS}+{kind}
     )"""
 
 
-_SEP_CLASS_WITHOUT_COMMA = "[" + SEP_CHARS.replace(",", "") + "]"
 _ISO_WEEK_NUMBER = r"5[0-3]|[1-4]\d|0[1-9]"
 # An ISO week is a part of a year too, so it shares the part-of-year families and their scan cost.
 # A bare "W" needs a two-digit week, as ISO 8601 writes it, so tax forms ("W2 2024") do not match.
-# After the year, a digit or hyphen is a day within the week ("2024-W23-2"), which is not matched.
+# After the year, a hyphen starts a day within the week ("2024-W23-2"), which is not matched.
 _ISO_WEEK_MEMBERS: dict[str, str] = {
     "part_year": (
         rf"w(?:eek{SEP_CLASS}+(?P<iso_week>{_ISO_WEEK_NUMBER}|[1-9])|(?P<iso_week>{_ISO_WEEK_NUMBER}))"
     ),
-    "year_part": rf"w(?P<iso_week>{_ISO_WEEK_NUMBER})(?![-\d])",
+    "year_part": rf"w(?P<iso_week>{_ISO_WEEK_NUMBER})(?!-)",
 }
 
 
 def _part_year_pattern(parts: str) -> str:
     """Match a part of a year before its year, such as "Q3 2024", "H1'24", "1H24", "third quarter of 2024", or "week 23 2024".
 
-    Only a quarter divided from its year without a comma takes a year from 1000 to 2999 ("Q2 1500"). Other parts, and parts followed by a comma, take the narrow year range, because the number is more often a count ("H2 1000 kg", "in week 3, 1500 users"). A two-digit year can be glued only to a number-first part ("4Q23"), because "Q423" could also be a quarter and a longer number.
+    Only a part whose kind allows any year range, divided from its year without a comma, takes a year from 1000 to 2999 ("Q2 1500"). Other parts, and parts followed by a comma, take the narrow year range, because the number is more often a count ("H2 1000 kg", "in week 3, 1500 users"). A two-digit year can be glued only to a number-first part ("4Q23"), because "Q423" could also be a quarter and a longer number.
 
     The pattern skips START, so a number before the part ("table 3 week 12 2024") does not stop it. Its own guard rejects a part inside a longer word.
 
@@ -364,14 +378,14 @@ def _part_year_pattern(parts: str) -> str:
     """
     # Letters before the part belong to a longer word ("CH1") and "<" or "</" to an HTML tag ("<h1")
     return rf"""
-    (?<![\w<])(?<!</)
+    (?<![\w<]|</)
     {parts}
     (?:
-        (?<=q\d|\dq|quarter)(?:{_SEP_CLASS_WITHOUT_COMMA}+of)?{_SEP_CLASS_WITHOUT_COMMA}*?(?<!\d){YEAR_GROUP}
+        (?<={_ANY_YEAR_RANGE_PART_ENDS})(?:{SEP_CLASS_WITHOUT_COMMA}+of)?{SEP_CLASS_WITHOUT_COMMA}*?(?<!\d){YEAR_GROUP}
         |(?:{SEP_CLASS}+of)?{SEP_CHARS_REGEX}(?<!\d){YEAR_NARROW_GROUP}
         |{SEP_CHARS_REGEX}{APOSTROPHE_YEAR_GROUP}
-        |(?<=[qh]\d){YEAR_NARROW_GROUP}
-        |(?<=\d[qh])(?P<year>\d\d)(?!\p{{L}})
+        |(?<=[{_PART_LETTERS}]\d){YEAR_NARROW_GROUP}
+        |(?<=\d[{_PART_LETTERS}])(?P<year>\d\d)(?!\p{{L}})
     )
     {END}
 """
@@ -576,14 +590,14 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
             for unit in TIME_UNITS
         ),
         *(
-            member
-            for family, iso_week in _ISO_WEEK_MEMBERS.items()
-            for member in (
+            pattern
+            for family in ("part_year", "year_part")
+            for pattern in (
                 *(
                     DatePattern(
                         name=f"{family}_{kind}",
                         regex=_part_of_year_member(kind),
-                        resolver=part_of_year_resolver(_PARTS_OF_YEAR[kind].months_per_part),
+                        resolver=_PART_OF_YEAR_RESOLVERS[kind],
                         precision=kind,
                         family=family,
                     )
@@ -591,7 +605,7 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
                 ),
                 DatePattern(
                     name=f"{family}_iso_week",
-                    regex=iso_week,
+                    regex=_ISO_WEEK_MEMBERS[family],
                     resolver=resolve_iso_week,
                     precision="week",
                     family=family,
