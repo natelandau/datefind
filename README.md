@@ -45,6 +45,7 @@ The examples use `now=date(2024, 3, 14)`, a Thursday.
 |                          | `twenty fifth of March`     | 2024-03-25 | day       |
 |                          | `March 5`                   | 2024-03-05 | day       |
 | Month and year           | `March 2025`                | 2025-03-01 | month     |
+|                          | `Jan '24`                   | 2024-01-01 | month     |
 |                          | `12/2024`                   | 2024-12-01 | month     |
 | Quarter                  | `Q3 2024`, `2024 Q3`        | 2024-07-01 | quarter   |
 |                          | `3rd quarter of 2024`       | 2024-07-01 | quarter   |
@@ -109,7 +110,7 @@ A date that cannot be real in the chosen order, such as `13/01/2024` with `first
 - Dates with a month name accept years from 1000 to 2999, such as `March 1105` or `dec 31 1899`.
 - All-number dates with a day, a month, and a year accept years from 1000 to 2999 when `/`, `-`, or `.` divides the parts, such as `12/25/1850`.
 - Every other all-number date must have a year from 1900 to 2099. This applies to dates divided by spaces, a month and year without a day such as `12/2024`, and runs of digits. This rule keeps counts, prices, and ranges such as `10 2500 sold`, `1500.05`, or `pages 10-1500` from matching as dates.
-- A two-digit year takes the century that puts it within 50 years of `now`. With `now` in 2026, `75` becomes 2075 and `76` becomes 1976. An apostrophe can mark a two-digit year, as in `Jan 5 '24`.
+- A two-digit year takes the century that puts it within 50 years of `now`. With `now` in 2026, `75` becomes 2075 and `76` becomes 1976. An apostrophe can mark a two-digit year, as in `Jan 5 '24`, `Jan '24`, or `Q3 '24`.
 
 ### Missing parts
 

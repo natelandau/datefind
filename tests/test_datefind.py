@@ -397,6 +397,11 @@ def test_find_dates_with_reference_date(
         # An apostrophe marks a two-digit year
         ("Jan 5 '24", [datetime(2024, 1, 5)]),
         ("Jan 5 \u201924", [datetime(2024, 1, 5)]),
+        ("Jan '24", [datetime(2024, 1, 1)]),
+        ("January '24", [datetime(2024, 1, 1)]),
+        ("Jan \u201924", [datetime(2024, 1, 1)]),
+        # Without an apostrophe, a number after a month name is a day
+        ("Jan 24", [datetime(2024, 1, 24)]),
         # A decimal number before a comma and a number is not a date
         ("3.8, 10", []),
         ("3-8, 10", []),
@@ -456,6 +461,7 @@ def test_find_dates(text, expected, debug):
         ("2nd quarter of 2025", "quarter"),
         ("H1 2025", "half"),
         ("2025-W10", "week"),
+        ("Mar '25", "month"),
         ("this year", "year"),
     ],
 )
