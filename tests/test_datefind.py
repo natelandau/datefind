@@ -303,7 +303,18 @@ def test_find_dates_with_reference_date(
         ("H2 1000 kg of hydrogen", []),
         ("H1 1080p", []),
         ("Q3, 1500 units", []),
+        ("4Q 1500 units", []),
+        ("4th quarter 1500 fans left", []),
         ("Q3, 2024", [datetime(2024, 7, 1)]),
+        # A year glued to a number-first part takes the narrow range, like "Q31500"
+        ("4Q1500", []),
+        ("4Q2024", [datetime(2024, 10, 1)]),
+        # Digits glued to a year before a number-first part belong to a longer number
+        ("SKU 20243Q", []),
+        ("2024Q3", [datetime(2024, 7, 1)]),
+        # An apostrophe and two digits before a letter name a decade, not a year
+        ("Jan '90s fashion", []),
+        ("Q3 '90s", []),
         # A bare W needs a two-digit week, so tax forms are not weeks
         ("Attach your W2 2024 form", []),
         ("week 5 2024", [datetime(2024, 1, 29)]),
@@ -769,6 +780,8 @@ def test_find_dates_followed_by_time(
         ),
         # A half year inside a sentence
         ("revenue rose in H1 2024.", [("H1 2024", date(2024, 1, 1))]),
+        # A decade after a day is not its year
+        ("Jan 5 '90s", [("Jan 5", date(2024, 1, 5))]),
         # A number before a part of a year does not stop it from matching
         ("Table 3 week 12 2024", [("week 12 2024", date(2024, 3, 18))]),
         ("Up 5 first quarter 2024", [("first quarter 2024", date(2024, 1, 1))]),
