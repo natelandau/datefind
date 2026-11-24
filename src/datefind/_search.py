@@ -4,8 +4,16 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import date, datetime, time, tzinfo
 
-from datefind._fragments import FirstNumber
+import regex as re
+
+from datefind._fragments import SEP_CLASS, FirstNumber
 from datefind._patterns import compile_date_regex, pattern_table
+
+# A standalone "v" or "version" marks a version number ("v2.1.1500"), not a date. Checked
+# per match rather than inside the date regex, where the lookbehind slows every scan.
+_VERSION_PREFIX = re.compile(rf"(?<!\p{{L}})(?:v|version){SEP_CLASS}{{0,2}}\Z", re.IGNORECASE)
+# Long enough to hold "version", two separators, and the letter before it
+_VERSION_PREFIX_WINDOW = 12
 
 
 @dataclass
@@ -58,6 +66,22 @@ def _midnight(day: date, tz: tzinfo) -> datetime:
     return naive.replace(tzinfo=tz)
 
 
+def _follows_version_prefix(text: str, start: int) -> bool:
+    """Check whether a match starting at `start` is a version number such as "v2.1.1500".
+
+    Args:
+        text: The text being searched.
+        start: Where the match begins.
+
+    Returns:
+        bool: True when the match starts with a digit right after "v" or "version".
+    """
+    if text[start] not in "0123456789":
+        return False
+    preceding = text[max(0, start - _VERSION_PREFIX_WINDOW) : start]
+    return _VERSION_PREFIX.search(preceding) is not None
+
+
 def search_dates(
     text: str, tz: tzinfo, first: FirstNumber, now: date | None, *, short_digit_dates: bool
 ) -> Generator[FoundDate, None, None]:
@@ -80,6 +104,8 @@ def search_dates(
     today = reference_day(now=now, tz=tz)
 
     for match in regex.finditer(text):
+        if _follows_version_prefix(text=text, start=match.start()):
+            continue
         groups = match.groupdict()
         # match.lastgroup is unreliable here: the patterns share inner group names
         pattern = next((p for p in patterns if groups[p.group_name] is not None), None)
