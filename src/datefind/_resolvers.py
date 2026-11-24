@@ -13,6 +13,9 @@ from datefind._fragments import ORDINAL_DAY_NUMBERS, PERIOD_MODIFIER_OFFSETS, SE
 
 MatchGroups: TypeAlias = Mapping[str, str | None]
 TimeUnit: TypeAlias = Literal["day", "week", "month", "year"]
+# How much of the date the matched text pins down. A counted offset such as "3 months ago"
+# lands on one day; a named period such as "last month" names only the month.
+DatePrecision: TypeAlias = Literal[TimeUnit, "quarter"]
 Direction: TypeAlias = Literal[-1, 1]
 
 

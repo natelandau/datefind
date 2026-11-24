@@ -1,6 +1,6 @@
 # datefind
 
-Library that finds dates in free text. Public API: `find_dates` and `FoundDate`, exported from `src/datefind/__init__.py`. Every `_`-prefixed module is private.
+Library that finds dates in free text. Public API: `find_dates`, `FoundDate`, and the `DatePrecision` type, exported from `src/datefind/__init__.py`. Every `_`-prefixed module is private.
 
 ## Commands
 
