@@ -9,15 +9,16 @@ from datetime import date
 
 from datefind import find_dates
 
-text = "Invoice sent Friday, January 5, 2024. Payment is due in 2 weeks."
+text = "Invoice sent Friday, January 5, 2024. Payment is due in 2 weeks. Report covers Q2 2024."
 
 for found in find_dates(text, tz="UTC", now=date(2024, 3, 14)):
-    print(found.match, found.datetime.date(), found.precision)
+    print(found.match, found.value, found.precision)
 ```
 
 ```text
 Friday, January 5, 2024 2024-01-05 day
 in 2 weeks 2024-03-28 day
+Q2 2024 2024-Q2 quarter
 ```
 
 `datefind` reads the year, month, and day only. It does not read times of day.
@@ -82,6 +83,17 @@ The examples use `now=date(2024, 3, 14)`, a Thursday.
 
 Pass `now` to get the same results on every run, for example in tests.
 
+### find_date
+
+`find_date()` takes the same arguments as `find_dates()` and returns the first `FoundDate` in the text, or `None` if the text has no date.
+
+```python
+from datefind import find_date
+
+found = find_date("Due Jan 5, 2024 or Feb 1, 2024", tz="UTC")
+print(found.value if found else "no date")  # 2024-01-05
+```
+
 ### FoundDate
 
 Each `FoundDate` has these fields:
@@ -90,6 +102,43 @@ Each `FoundDate` has these fields:
 - `match` - The text that matched, taken from the original text.
 - `span` - The start and end positions of `match` in the original text.
 - `precision` - The unit of time that the text names: `day`, `week`, `month`, `quarter`, `half`, or `year`.
+
+It also has these computed properties:
+
+- `date` - The calendar day of `datetime`, as a `date`.
+- `value` - The day and its precision as one standard string. Strings of the same precision sort in date order.
+
+| `precision` | `value` format | Example    |
+| ----------- | -------------- | ---------- |
+| `day`       | `YYYY-MM-DD`   | 2024-03-05 |
+| `week`      | `YYYY-Www`     | 2024-W10   |
+| `month`     | `YYYY-MM`      | 2024-03    |
+| `quarter`   | `YYYY-Qn`      | 2024-Q1    |
+| `half`      | `YYYY-Hn`      | 2024-H1    |
+| `year`      | `YYYY`         | 2024       |
+
+A week uses the ISO week-numbering year, so the week that starts on December 30, 2024 is `2025-W01`.
+
+`as_dict()` returns the found date as plain values that you can store or write as JSON, typed as `FoundDateDict`. `date` holds the ISO date with no time or timezone, and `span` is a list:
+
+```python
+from datefind import find_date
+
+found = find_date("Paid in March 2024.", tz="UTC")
+print(found.as_dict())
+```
+
+```python
+{
+    "value": "2024-03",
+    "date": "2024-03-01",
+    "precision": "month",
+    "match": "March 2024",
+    "span": [8, 18],
+}
+```
+
+A `FoundDate` is immutable. Use `dataclasses.replace()` to make a changed copy.
 
 ## How dates are read
 
