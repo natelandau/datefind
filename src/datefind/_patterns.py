@@ -35,6 +35,7 @@ from datefind._fragments import (
     FirstNumber,
 )
 from datefind._resolvers import (
+    DatePrecision,
     Direction,
     Resolver,
     TimeUnit,
@@ -337,12 +338,14 @@ class DatePattern:
         name: A unique identifier, also used to name the pattern's group in the combined regex.
         regex: The regex fragment that matches the date text. For a member of a family, only the part that differs between members.
         resolver: The function that turns the match's named groups into a date.
+        precision: How much of the date the matched text pins down.
         family: The shared pattern this entry belongs to, if any. Consecutive members of a family compile into one shared pattern.
     """
 
     name: str
     regex: str
     resolver: Resolver
+    precision: DatePrecision
     family: str | None = None
 
     @property
@@ -366,18 +369,42 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
     year_first = ["year", *(part for part in order if part != "year")]
 
     return (
-        DatePattern(name="day_month_year", regex=DD_MONTH_YYYY, resolver=resolve_calendar_date),
-        DatePattern(name="month_day_year", regex=MONTH_DD_YYYY, resolver=resolve_calendar_date),
-        DatePattern(name="year_month_day", regex=YYYY_MONTH_DD, resolver=resolve_calendar_date),
-        DatePattern(name="month_day", regex=MONTH_DD, resolver=resolve_calendar_date),
-        DatePattern(name="day_month", regex=DD_MONTH, resolver=resolve_calendar_date),
-        DatePattern(name="year_month", regex=YYYY_MONTH, resolver=resolve_calendar_date),
-        DatePattern(name="month_year", regex=MONTH_YYYY, resolver=resolve_calendar_date),
+        DatePattern(
+            name="day_month_year",
+            regex=DD_MONTH_YYYY,
+            resolver=resolve_calendar_date,
+            precision="day",
+        ),
+        DatePattern(
+            name="month_day_year",
+            regex=MONTH_DD_YYYY,
+            resolver=resolve_calendar_date,
+            precision="day",
+        ),
+        DatePattern(
+            name="year_month_day",
+            regex=YYYY_MONTH_DD,
+            resolver=resolve_calendar_date,
+            precision="day",
+        ),
+        DatePattern(
+            name="month_day", regex=MONTH_DD, resolver=resolve_calendar_date, precision="day"
+        ),
+        DatePattern(
+            name="day_month", regex=DD_MONTH, resolver=resolve_calendar_date, precision="day"
+        ),
+        DatePattern(
+            name="year_month", regex=YYYY_MONTH, resolver=resolve_calendar_date, precision="month"
+        ),
+        DatePattern(
+            name="month_year", regex=MONTH_YYYY, resolver=resolve_calendar_date, precision="month"
+        ),
         *(
             DatePattern(
                 name=f"relative_{unit}_word",
                 regex=words,
                 resolver=relative_word_resolver(unit),
+                precision=unit,
                 family="relative_word",
             )
             for unit, words in _RELATIVE_WORDS_BY_UNIT
@@ -387,14 +414,30 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
                 name=f"{family}_{unit}",
                 regex=f"{unit}s?",
                 resolver=relative_count_resolver(unit=unit, direction=direction),
+                precision="day",
                 family=family,
             )
             for family, direction in _COUNT_DIRECTIONS.items()
             for unit in _TIME_UNITS
         ),
-        DatePattern(name="quarter_year", regex=QUARTER_YYYY, resolver=resolve_calendar_date),
-        DatePattern(name="year_quarter", regex=YYYY_QUARTER, resolver=resolve_calendar_date),
-        DatePattern(name="modified_weekday", regex=MODIFIED_WEEKDAY, resolver=resolve_weekday),
+        DatePattern(
+            name="quarter_year",
+            regex=QUARTER_YYYY,
+            resolver=resolve_calendar_date,
+            precision="quarter",
+        ),
+        DatePattern(
+            name="year_quarter",
+            regex=YYYY_QUARTER,
+            resolver=resolve_calendar_date,
+            precision="quarter",
+        ),
+        DatePattern(
+            name="modified_weekday",
+            regex=MODIFIED_WEEKDAY,
+            resolver=resolve_weekday,
+            precision="day",
+        ),
         DatePattern(
             name="numeric_year_first",
             regex=_numeric_pattern(
@@ -404,6 +447,7 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
                 include_compact=True,
             ),
             resolver=resolve_calendar_date,
+            precision="day",
         ),
         DatePattern(
             name="numeric_strict",
@@ -414,16 +458,19 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
                 include_compact=True,
             ),
             resolver=resolve_calendar_date,
+            precision="day",
         ),
         DatePattern(
             name="numeric_year_month",
             regex=_year_month_pattern(year_first=True, include_compact=short_digit_dates),
             resolver=resolve_calendar_date,
+            precision="month",
         ),
         DatePattern(
             name="numeric_month_year",
             regex=_year_month_pattern(year_first=False, include_compact=short_digit_dates),
             resolver=resolve_calendar_date,
+            precision="month",
         ),
         DatePattern(
             name="numeric_year_first_flexible",
@@ -434,6 +481,7 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
                 include_compact=short_digit_dates,
             ),
             resolver=resolve_calendar_date,
+            precision="day",
         ),
         DatePattern(
             name="numeric_flexible",
@@ -444,8 +492,11 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
                 include_compact=short_digit_dates,
             ),
             resolver=resolve_calendar_date,
+            precision="day",
         ),
-        DatePattern(name="bare_weekday", regex=BARE_WEEKDAY, resolver=resolve_weekday),
+        DatePattern(
+            name="bare_weekday", regex=BARE_WEEKDAY, resolver=resolve_weekday, precision="day"
+        ),
     )
 
 

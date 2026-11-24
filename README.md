@@ -41,12 +41,14 @@ for date in find_dates(string, tz="America/New_York"):
 >>> FoundDate(
         datetime=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
         match='2024-01-01',
-        span=(0, 10)
+        span=(0, 10),
+        precision='day'
     )
 >>> FoundDate(
         datetime=datetime.datetime(2024, 1, 2, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')),
         match='2024-01-02',
-        span=(15, 25)
+        span=(15, 25),
+        precision='day'
     )
 ```
 
@@ -82,6 +84,7 @@ For each date found, a `FoundDate` object is returned. The FoundDate object has 
 - `datetime` - The datetime object, at midnight in `tz`.
 - `match` - The matched portion of the text.
 - `span` - The span of the matched text in the original text.
+- `precision` - The unit of time that the text names: `day`, `week`, `month`, `quarter`, or `year`. Counted offsets such as `3 months ago` name one day, so their precision is `day`. A month, quarter, or year with no day returns the first day of that period. For example, `March 2025` returns March 1, 2025. A period relative to `now`, such as `next month` or `last week`, returns the day one period from `now`. For example, `next month` on November 23 returns December 23.
 
 ## Contributing
 

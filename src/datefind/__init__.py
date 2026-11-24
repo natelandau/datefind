@@ -8,9 +8,10 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from tzlocal import get_localzone
 
 from datefind._fragments import FirstNumber
+from datefind._resolvers import DatePrecision
 from datefind._search import FoundDate, search_dates
 
-__all__ = ["FoundDate", "find_dates"]
+__all__ = ["DatePrecision", "FoundDate", "find_dates"]
 
 
 def find_dates(

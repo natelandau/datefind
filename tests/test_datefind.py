@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from freezegun import freeze_time
 
-from datefind import find_dates
+from datefind import DatePrecision, find_dates
 
 fixture_file = Path(__file__).parent / "fixture.txt"
 
@@ -338,6 +338,43 @@ def test_find_dates(text, expected, debug):
         assert found.datetime.strftime("%Y-%m-%d") == expected[i].strftime("%Y-%m-%d")
         assert found.match == text
         assert found.span == (0, len(text))
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("March 1 2025", "day"),
+        ("1 March 2025", "day"),
+        ("2025 March 1", "day"),
+        ("March 1", "day"),
+        ("2025-03-01", "day"),
+        ("03/01/2025", "day"),
+        ("3/1/25", "day"),
+        ("20250301", "day"),
+        ("today", "day"),
+        ("3 months ago", "day"),
+        ("in 2 weeks", "day"),
+        ("1 year from now", "day"),
+        ("friday", "day"),
+        ("next friday", "day"),
+        ("last week", "week"),
+        ("march 2025", "month"),
+        ("2025 march", "month"),
+        ("2025-03", "month"),
+        ("03/2025", "month"),
+        ("next month", "month"),
+        ("Q1 2025", "quarter"),
+        ("2025 Q1", "quarter"),
+        ("this year", "year"),
+    ],
+)
+def test_precision(text: str, expected: DatePrecision, debug) -> None:
+    """Verify each found date reports how much of the date its text pins down."""
+    # When: finding the date
+    dates = list(find_dates(text=text, tz="UTC", now=date(2026, 11, 23)))
+
+    # Then: the whole text is one date with the expected precision
+    assert [(found.match, found.precision) for found in dates] == [(text, expected)]
 
 
 @freeze_time("2024-03-01")

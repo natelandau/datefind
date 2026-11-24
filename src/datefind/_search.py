@@ -8,6 +8,7 @@ import regex as re
 
 from datefind._fragments import SEP_CLASS, FirstNumber
 from datefind._patterns import compile_date_regex, pattern_table
+from datefind._resolvers import DatePrecision
 
 # A standalone "v" or "version" marks a version number ("v2.1.1500"), not a date. Checked
 # per match rather than inside the date regex, where the lookbehind slows every scan.
@@ -24,11 +25,13 @@ class FoundDate:
         datetime (datetime): The parsed datetime object
         match (str): The specific text that matched the date pattern
         span (tuple[int, int]): The start and end positions of the match in the text
+        precision (DatePrecision): The unit of time the text names: "day", "week", "month", "quarter", or "year". An explicit period returns its first day ("March 2025" gives March 1). A period relative to the reference day returns the day one period away ("next month" on November 23 gives December 23)
     """
 
     datetime: datetime
     match: str
     span: tuple[int, int]
+    precision: DatePrecision = "day"
 
 
 def reference_day(now: date | None, tz: tzinfo) -> date:
@@ -118,4 +121,5 @@ def search_dates(
                 datetime=_midnight(day=resolved, tz=tz),
                 match=match.group(),
                 span=match.span(),
+                precision=pattern.precision,
             )
