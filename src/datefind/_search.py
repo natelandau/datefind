@@ -7,13 +7,14 @@ from datetime import date, datetime, time, tzinfo
 import regex as re
 
 from datefind._fragments import (
+    ASCII_EQUIVALENTS,
     SEP_CLASS,
     UNAMBIGUOUS_WEEKDAYS,
     WEEKDAY_ABBREVIATIONS_THAT_ARE_WORDS,
     FirstNumber,
 )
 from datefind._patterns import BARE_WEEKDAY_PATTERN_NAME, compile_date_regex, pattern_table
-from datefind._resolvers import DatePrecision
+from datefind._resolvers import TIME_UNITS, DatePrecision, offset_date, weekday_number
 
 # A standalone "v" or "version" marks a version number ("v2.1.1500"), not a date. Checked
 # per match rather than inside the date regex, where the lookbehind slows every scan.
@@ -29,8 +30,8 @@ _WEEKDAY_PREFIX = re.compile(
     pattern=rf"""
         (?<![\w'])
         (?:
-            (?:{UNAMBIGUOUS_WEEKDAYS})(?!\p{{L}}){SEP_CLASS}+
-            |(?:{WEEKDAY_ABBREVIATIONS_THAT_ARE_WORDS})[.,]{SEP_CLASS}*
+            (?P<weekday>{UNAMBIGUOUS_WEEKDAYS})(?!\p{{L}}){SEP_CLASS}+
+            |(?P<weekday>{WEEKDAY_ABBREVIATIONS_THAT_ARE_WORDS})[.,]{SEP_CLASS}*
         )
         (?:the{SEP_CLASS}+)?
         \Z
@@ -39,6 +40,25 @@ _WEEKDAY_PREFIX = re.compile(
 )
 # Long enough to hold "wednesday", "the", and a few separators
 _WEEKDAY_PREFIX_WINDOW = 20
+# A counted offset right before a date, as in "2 weeks after Jan 5, 2024"
+_OFFSET_PREFIX = re.compile(
+    pattern=rf"""
+        (?<![\w.])
+        (?P<count>\d{{1,4}}){SEP_CLASS}+
+        (?P<unit>{"|".join(f"{unit}s?" for unit in TIME_UNITS)}){SEP_CLASS}+
+        (?P<direction>after|before|from){SEP_CLASS}+
+        (?:the{SEP_CLASS}+)?
+        \Z
+    """,
+    flags=re.IGNORECASE | re.VERBOSE,
+)
+# Long enough to hold a four-digit count, "months", "before", "the", and separators
+_OFFSET_PREFIX_WINDOW = 28
+# "from" before a date that starts a range ("3 years from 2020-01-01 to 2023-01-01") names
+# the range's first day, not an offset
+_RANGE_CONTINUES = re.compile(
+    pattern=r"[\s,]*(?:-|(?:to|until|till|through|thru)(?!\p{L}))", flags=re.IGNORECASE
+)
 
 
 @dataclass
@@ -132,25 +152,70 @@ def _match_ending_at(
     return pattern.search(string=text, pos=max(earliest, end - window), endpos=end)
 
 
-def _weekday_prefix_start(text: str, start: int, earliest: int) -> int:
-    """Find where a date starting at `start` begins once a weekday right before it is included.
+@dataclass(frozen=True)
+class _PrefixedDay:
+    """A calendar day after reading the weekday and counted offset written before it.
+
+    Attributes:
+        start: Where the date's match starts, including any weekday that agrees with it and any offset.
+        claimed_start: Where the text the date accounts for starts. Differs from `start` only for a weekday that disagrees with the date, which is dropped rather than reported on its own.
+        day: The date after any offset, or None when the offset lands on a day that does not exist.
+    """
+
+    start: int
+    claimed_start: int
+    day: date | None
+
+
+def _read_prefixes(
+    text: str, start: int, end: int, day: date, earliest: int, *, year_stated: bool
+) -> _PrefixedDay:
+    """Read a weekday ("Friday, Jan 5") and a counted offset ("2 weeks after Jan 5") before a calendar day.
 
     Args:
         text: The text being searched.
         start: Where the date match begins.
-        earliest: The end of the last date already yielded, so one weekday cannot belong to two dates.
+        end: Where the date match ends.
+        day: The date the match resolves to.
+        earliest: The end of the last date already yielded, so no text belongs to two dates.
+        year_stated: Whether the text gives the year. Without one the year is a guess, so a weekday that disagrees with the date still belongs to it.
 
     Returns:
-        int: The start of the weekday before the date, or `start` when there is none.
+        _PrefixedDay: The date with its extended start and any offset applied.
     """
-    prefix = _match_ending_at(
+    claimed_start = start
+    if weekday := _match_ending_at(
         pattern=_WEEKDAY_PREFIX,
         text=text,
         end=start,
         window=_WEEKDAY_PREFIX_WINDOW,
         earliest=earliest,
+    ):
+        claimed_start = weekday.start()
+        if not year_stated or weekday_number(weekday.group("weekday")) == day.weekday():
+            start = weekday.start()
+    offset = _match_ending_at(
+        pattern=_OFFSET_PREFIX,
+        text=text,
+        end=claimed_start,
+        window=_OFFSET_PREFIX_WINDOW,
+        earliest=earliest,
     )
-    return prefix.start() if prefix else start
+    if offset is None or (
+        offset.group("direction").lower() == "from"
+        and _RANGE_CONTINUES.match(string=text, pos=end) is not None
+    ):
+        return _PrefixedDay(start=start, claimed_start=claimed_start, day=day)
+    return _PrefixedDay(
+        start=offset.start(),
+        claimed_start=offset.start(),
+        day=offset_date(
+            day=day,
+            count=offset.group("count"),
+            unit=offset.group("unit"),
+            direction=offset.group("direction"),
+        ),
+    )
 
 
 def search_dates(
@@ -158,7 +223,7 @@ def search_dates(
 ) -> Generator[FoundDate, None, None]:
     """Yield every date in the text as midnight in `tz`, with relative dates resolved against `now`.
 
-    Matches that look like dates but are not real dates, such as February 30, are skipped. A weekday right before a date is part of that date, not a date of its own.
+    Matches that look like dates but are not real dates, such as February 30, are skipped. A weekday right before a date is part of that date, not a date of its own, and a weekday that disagrees with the date is dropped. A counted offset right before a date ("2 weeks after Jan 5, 2024") shifts it. Unicode spaces, dashes, apostrophes, and full-width digits match as their ASCII forms.
 
     Args:
         text: The text to search.
@@ -173,13 +238,15 @@ def search_dates(
     regex = compile_date_regex(first=first, short_digit_dates=short_digit_dates)
     patterns = pattern_table(first=first, short_digit_dates=short_digit_dates)
     today = reference_day(now=now, tz=tz)
+    # One character for one, so positions in `searched` are positions in `text`
+    searched = text.translate(ASCII_EQUIVALENTS)
 
     # A bare weekday is held back until the next match shows whether it starts a longer date
     pending_weekday: FoundDate | None = None
     # End of the last yielded date that is not a bare weekday, so no weekday joins two dates
     previous_end = 0
-    for match in regex.finditer(text):
-        if _follows_version_prefix(text=text, start=match.start()):
+    for match in regex.finditer(searched):
+        if _follows_version_prefix(text=searched, start=match.start()):
             continue
         groups = match.groupdict()
         # match.lastgroup is unreliable here: the patterns share inner group names
@@ -191,11 +258,24 @@ def search_dates(
         if resolved is None:
             continue
         start, end = match.span()
-        if pattern.takes_weekday_prefix:
-            start = _weekday_prefix_start(text=text, start=start, earliest=previous_end)
-        if pending_weekday is not None and pending_weekday.span[0] != start:
+        claimed_start = start
+        if pattern.names_calendar_day:
+            prefixed = _read_prefixes(
+                text=searched,
+                start=start,
+                end=end,
+                day=resolved,
+                earliest=previous_end,
+                year_stated=groups.get("year") is not None,
+            )
+            start, claimed_start, resolved = prefixed.start, prefixed.claimed_start, prefixed.day
+        # A held-back weekday inside the text this date accounts for is part of the date
+        if pending_weekday is not None and pending_weekday.span[0] < claimed_start:
             yield pending_weekday
         pending_weekday = None
+        if resolved is None:
+            previous_end = end
+            continue
         found = FoundDate(
             datetime=_midnight(day=resolved, tz=tz),
             match=text[start:end],

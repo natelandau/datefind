@@ -7,12 +7,10 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import cache
 from itertools import groupby
-from typing import get_args
 
 import regex as re
 
 from datefind._fragments import (
-    DASH_CLASS,
     DAY_AFTER_TOMORROW,
     DAY_BEFORE_YESTERDAY,
     DD,
@@ -31,6 +29,7 @@ from datefind._fragments import (
     TODAY,
     TOMORROW,
     UNAMBIGUOUS_WEEKDAYS,
+    WEAK_SEP_CLASS,
     WEEKDAYS,
     YESTERDAY,
     YYYY,
@@ -40,6 +39,7 @@ from datefind._fragments import (
     FirstNumber,
 )
 from datefind._resolvers import (
+    TIME_UNITS,
     DatePrecision,
     Direction,
     Resolver,
@@ -67,7 +67,8 @@ YEAR_NARROW_FLEXIBLE_GROUP = rf"(?P<year>{YYYY_NARROW_FLEXIBLE})"
 _UNLESS_TIME_FOLLOWS = rf"(?![\s,@]+{TIME_OF_DAY})"
 # Rejects a date that runs into more digits
 END = rf"(?![0-9]|{_UNLESS_TIME_FOLLOWS}{SEP_CLASS}[0-9])"
-REQUIRED_SEPARATOR = rf"{SEP_CLASS}+?"
+REQUIRED_SEPARATOR = rf"{WEAK_SEP_CLASS}+?"
+MIXED_SEPARATOR = rf"{SEP_CLASS}+?"
 # A separator with / - or . marks a numeric year clearly enough for years outside 1900 to 2099.
 # Spaces and commas alone also divide counts in prose, as in "10 2500 sold".
 YEAR_MARKING_SEPARATOR = rf"{SEP_CHARS_REGEX}[-/.]{SEP_CHARS_REGEX}"
@@ -77,8 +78,9 @@ _NOT_BEFORE_MONTH_NAME = rf"(?!{MONTH_DAY_SEPARATOR}(?:{MONTH}))"
 # A two-digit year after a month name and day is not the end of a four-digit year ("March
 # 2025" is not March 20, 25), minutes ("Feb 10:00"), an hour ("Jan 5 10pm"), or the day of
 # a later date ("Jan 5 - 10 March")
+# An apostrophe can mark a two-digit year ("Jan 5 '24").
 YEAR_AFTER_MONTH_DAY_GROUP = (
-    rf"(?P<year>{YYYY}|(?<!\d|:)(?!{TIME_OF_DAY})\d\d{_NOT_BEFORE_MONTH_NAME})"
+    rf"(?:(?P<year>{YYYY})|(?<!\d|:)'?(?!{TIME_OF_DAY})(?P<year>\d\d){_NOT_BEFORE_MONTH_NAME})"
 )
 PERIOD_MODIFIER = "|".join(PERIOD_MODIFIER_OFFSETS)
 # [Qq] excluded so that a digit following an invalid quarter (e.g. "Q5 2024") cannot
@@ -109,7 +111,7 @@ DD_MONTH_YYYY = rf"""
 # separator instead. A month name after the second day ("Jan 28 - 3 Feb") makes two dates.
 _DAY_RANGE_END = rf"""
     (?<=\p{{L}}{SEP_CLASS_WITHOUT_HYPHEN}+(?:(?:the|of){SEP_CLASS_WITHOUT_HYPHEN}+)?(?:[12]\d|3[01]|[1-9])(?:{DIGIT_SUFFIXES})?)
-    (?:\s*{DASH_CLASS}\s*|\s+(?:to|through|thru)\s+)
+    (?:\s*-\s*|\s+(?:to|through|thru)\s+)
     (?P<range_end_day>{DD_FLEXIBLE})(?:{DIGIT_SUFFIXES})?
     {_NOT_BEFORE_MONTH_NAME}
     (?:{MONTH_DAY_SEPARATOR}{YEAR_GROUP})?
@@ -200,12 +202,11 @@ BARE_WEEKDAY = rf"""
 """
 
 # Relative words, grouped by the unit they offset, in alternation order
-_TIME_UNITS: tuple[TimeUnit, ...] = get_args(TimeUnit)
 _RELATIVE_WORDS_BY_UNIT: tuple[tuple[TimeUnit, str], ...] = (
     ("day", f"{TODAY}|{YESTERDAY}|{TOMORROW}|{DAY_AFTER_TOMORROW}|{DAY_BEFORE_YESTERDAY}"),
     *(
         (unit, rf"(?:{PERIOD_MODIFIER}){SEP_CHARS_REGEX}{unit}'?s?")
-        for unit in _TIME_UNITS
+        for unit in TIME_UNITS
         if unit != "day"
     ),
 )
@@ -317,7 +318,7 @@ def _numeric_pattern(
 ) -> str:
     """Join numeric date parts in the given order, either all adjacent or all separated.
 
-    Mixing adjacent and separated parts is rejected so a run like "3, 2024" is not split into 3/20/24. Parts divided by / - or . take the year from `parts`; a digit run, or parts divided only by other separators such as spaces, take `narrow_year`.
+    Mixing adjacent and separated parts is rejected so a run like "3, 2024" is not split into 3/20/24. Parts divided by / - or . take the year from `parts`; a digit run, or parts divided only by other separators such as spaces, take `narrow_year`. Parts divided by a mix of both ("12/25, 2024") need a year from 1900 to 2099.
 
     Args:
         order: The date part names ("year", "month", "day"), in text order.
@@ -336,8 +337,11 @@ def _numeric_pattern(
     alternatives = [
         *([join("", narrow_parts)] if include_compact else []),
         join(YEAR_MARKING_SEPARATOR, parts),
-        join(REQUIRED_SEPARATOR, narrow_parts),
+        join(MIXED_SEPARATOR, parts | {"year": YEAR_NARROW_GROUP}),
     ]
+    # A two-digit year after mixed separators is another number ("3.8, 10", "pages 3-8, 10")
+    if narrow_year != YEAR_NARROW_GROUP:
+        alternatives.append(join(REQUIRED_SEPARATOR, narrow_parts))
     return f"{START}(?:{'|'.join(alternatives)}){END}"
 
 
@@ -388,10 +392,10 @@ class DatePattern:
         return f"pattern_{self.name}"
 
     @property
-    def takes_weekday_prefix(self) -> bool:
-        """Whether a weekday right before the match is part of the date, as in "Friday, January 5, 2024".
+    def names_calendar_day(self) -> bool:
+        """Whether the match names one calendar day, so a weekday or an offset before it belongs to the date.
 
-        Only a calendar date that names a day can carry a weekday.
+        Examples: "Friday, January 5, 2024" and "2 weeks after Jan 5, 2024".
         """
         return self.resolver is resolve_calendar_date and self.precision == "day"
 
@@ -460,7 +464,7 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
                 family=family,
             )
             for family, direction in _COUNT_DIRECTIONS.items()
-            for unit in _TIME_UNITS
+            for unit in TIME_UNITS
         ),
         DatePattern(
             name="quarter_year",

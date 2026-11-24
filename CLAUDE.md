@@ -14,7 +14,13 @@ Library that finds dates in free text. Public API: `find_dates`, `FoundDate`, an
 - `_fragments.py`: regex fragments and word lookup tables.
 - `_patterns.py`: `pattern_table` lists every `DatePattern`; `compile_date_regex` joins them into one regex. Table order is alternation order, so an earlier row wins when two patterns match at the same position.
 - `_resolvers.py`: turns one match's named groups plus a reference `today` into a `date`. Return `None` when the text is not a real date (February 30).
-- `_search.py`: scans text, yields `FoundDate` per resolved match at midnight in the output timezone. Holds checks too slow for the combined regex, run once per match: version prefix ("v2.1.1500"), weekday before a date (merged into that date's span). Put a new lookbehind-style rule here when it slows `scripts/compare_with_main.py` past 1.10x.
+- `_search.py`: converts look-alike Unicode characters to ASCII one for one (`ASCII_EQUIVALENTS`), scans, yields `FoundDate` per resolved match at midnight in the output timezone. Holds checks too slow for the combined regex, run once per match: version prefix ("v2.1.1500"), weekday before a date (merged into the span when it agrees), counted offset before a date ("2 weeks after Jan 5"). Put a new lookbehind-style rule here when it slows `scripts/compare_with_main.py` past 1.10x.
+
+## Public API rules
+
+- New information about a match: a new `FoundDate` field. Never an option that changes what `find_dates` yields (a tuple, an extra item).
+- An option whose `False` is unclear, or with more than two choices: a string value such as `prefer="past" | "future" | "nearest"`, not a boolean.
+- No dates found: yield nothing. Never return or yield `None`.
 
 ## Tests
 
