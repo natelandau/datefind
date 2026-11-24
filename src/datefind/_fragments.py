@@ -110,6 +110,28 @@ DAY_BEFORE_YESTERDAY = rf"day{SEP_CLASS}+before{SEP_CLASS}+{YESTERDAY}"
 # An hour with minutes or with am/pm, such as "14:30", "9:15", "3pm", or "10 p.m.". ISO 8601
 # also writes the end of a day as "24:00".
 TIME_OF_DAY = r"(?:(?:[01]?\d|2[0-3])(?::[0-5]\d|\s?[ap]\.?m\.?(?!\p{L}))|24:00)"
+_HOUR = r"(?:[01]\d|2[0-3])"
+_MINUTE_OR_SECOND = r"[0-5]\d"
+_SEPARATED_CLOCK_TIME_WITH_SECONDS = rf"{_HOUR}(?:-{_MINUTE_OR_SECOND}-{_MINUTE_OR_SECOND}|\.{_MINUTE_OR_SECOND}\.{_MINUTE_OR_SECOND})"
+_SEPARATED_CLOCK_TIME = (
+    rf"{_HOUR}(?:-{_MINUTE_OR_SECOND}|\.{_MINUTE_OR_SECOND})|{_SEPARATED_CLOCK_TIME_WITH_SECONDS}"
+)
+# Seconds may carry milliseconds or microseconds ("143012345" in a Pixel photo name). Other
+# digit counts would let a second compact date pass as a time ("20240512-20240513").
+_COMPACT_CLOCK_TIME_WITH_SECONDS = (
+    rf"{_HOUR}{_MINUTE_OR_SECOND}{_MINUTE_OR_SECOND}(?:\d{{3}}){{0,2}}"
+)
+_COMPACT_CLOCK_TIME = rf"{_HOUR}{_MINUTE_OR_SECOND}|{_COMPACT_CLOCK_TIME_WITH_SECONDS}"
+# A time after a date in a camera, screenshot, or recording file name, such as
+# "IMG_20240512_1430", "Screenshot_20240512-143012", or "2024-05-12 14.30.12". A hyphen-joined
+# time needs seconds so a year range ("2024-2025") or the rest of a malformed date
+# ("1899-00-09") is not read as a time. A space-joined time needs separated seconds because
+# prose writes counts and prices without them ("May 2024 1430 sold", "2024-05-12 14.30").
+FILE_NAME_TIME = rf"""(?:
+    _(?:{_SEPARATED_CLOCK_TIME}|{_COMPACT_CLOCK_TIME})
+    |-(?:{_SEPARATED_CLOCK_TIME_WITH_SECONDS}|{_COMPACT_CLOCK_TIME_WITH_SECONDS})
+    |\x20(?:{_SEPARATED_CLOCK_TIME_WITH_SECONDS})
+)(?!\d)"""
 # Offset, in units, of "<modifier> week", "<modifier> month", "<modifier> year"
 PERIOD_MODIFIER_OFFSETS: dict[str, int] = {"last": -1, "next": 1, "this": 0}
 UNAMBIGUOUS_WEEKDAYS = (

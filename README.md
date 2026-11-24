@@ -197,7 +197,7 @@ These rules keep common text from matching:
 
 ### Times and special characters
 
-- A time after a date, as in `2024-01-05 14:30` or `Jan 5 10pm`, is ignored, and the date before it is found.
+- A time after a date, as in `2024-01-05 14:30`, `Jan 5 10pm`, or the file name `IMG_20240512_143012.jpg`, is ignored, and the date before it is found.
 - Text copied from web pages and word processors works without cleanup. Non-breaking spaces, en dashes, curly apostrophes, and full-width digits match the same as their plain forms. `match` and `span` refer to the original text.
 
 ## Comparison with other libraries
