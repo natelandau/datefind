@@ -16,6 +16,12 @@ Library that finds dates in free text. Public API: `find_dates`, `FoundDate`, an
 - `_resolvers.py`: turns one match's named groups plus a reference `today` into a `date`. Return `None` when the text is not a real date (February 30).
 - `_search.py`: converts look-alike Unicode characters to ASCII one for one (`ASCII_EQUIVALENTS`), scans, yields `FoundDate` per resolved match at midnight in the output timezone. Holds checks too slow for the combined regex, run once per match: version prefix ("v2.1.1500"), weekday before a date (merged into the span when it agrees), counted offset before a date ("2 weeks after Jan 5"). Put a new lookbehind-style rule here when it slows `scripts/compare_with_main.py` past 1.10x.
 
+## Public API rules
+
+- New information about a match: a new `FoundDate` field. Never an option that changes what `find_dates` yields (a tuple, an extra item).
+- An option whose `False` is unclear, or with more than two choices: a string value such as `prefer="past" | "future" | "nearest"`, not a boolean.
+- No dates found: yield nothing. Never return or yield `None`.
+
 ## Tests
 
 - Add a date format or false-match case as a row in the `test_find_dates` parametrize table in `tests/test_datefind.py`.
