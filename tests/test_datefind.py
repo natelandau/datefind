@@ -288,9 +288,25 @@ def test_find_dates_with_reference_date(
         ("<h1 2024", []),
         ("</h1 2024", []),
         ("CH1 2024", []),
-        # Durations are not half years
+        # Durations are not half years: a number-first half needs a capital H
         ("1H 20", []),
         ("2h 30m", []),
+        ("1h20", []),
+        ("Total time 1h45m.", []),
+        ("step 1h 2024", []),
+        ("In 2020 2h of downtime", []),
+        # A count after the part is not its year
+        ("1 quarter 2024", []),
+        ("3 quarter of 2024", []),
+        ("In week 3, 1500 users signed up", []),
+        ("In the first half, 1200 people came", []),
+        ("H2 1000 kg of hydrogen", []),
+        ("H1 1080p", []),
+        ("Q3, 1500 units", []),
+        ("Q3, 2024", [datetime(2024, 7, 1)]),
+        # A bare W needs a two-digit week, so tax forms are not weeks
+        ("Attach your W2 2024 form", []),
+        ("week 5 2024", [datetime(2024, 1, 29)]),
         # Bare weekday — next occurrence
         ("Monday", [datetime(2024, 3, 4)]),
         ("Friday", [datetime(2024, 3, 8)]),
@@ -753,6 +769,14 @@ def test_find_dates_followed_by_time(
         ),
         # A half year inside a sentence
         ("revenue rose in H1 2024.", [("H1 2024", date(2024, 1, 1))]),
+        # A number before a part of a year does not stop it from matching
+        ("Table 3 week 12 2024", [("week 12 2024", date(2024, 3, 18))]),
+        ("Up 5 first quarter 2024", [("first quarter 2024", date(2024, 1, 1))]),
+        (
+            "H1 2024 H2 2024",
+            [("H1 2024", date(2024, 1, 1)), ("H2 2024", date(2024, 7, 1))],
+        ),
+        ("Revenue 2023 H1 2024 down", [("H1 2024", date(2024, 1, 1))]),
         # A weekday not directly before a date stays a date of its own
         (
             "Monday, then January 5",

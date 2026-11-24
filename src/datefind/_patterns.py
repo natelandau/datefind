@@ -22,6 +22,7 @@ from datefind._fragments import (
     MONTH,
     ORDINAL_DAY_WORDS,
     PERIOD_MODIFIER_OFFSETS,
+    SEP_CHARS,
     SEP_CHARS_REGEX,
     SEP_CLASS,
     SEP_CLASS_WITHOUT_HYPHEN,
@@ -280,7 +281,8 @@ class _PartOfYear:
     """How one kind of part of a year is written and how long it is.
 
     Attributes:
-        letter: The letter before or after the part number, as in "Q3" or "1H".
+        letter: The letter before the part number, as in "Q3".
+        letter_after_number: The letter after the part number, as in "3Q".
         numbers: The regex for the part numbers.
         ordinal_words: The regex for the part as an ordinal word, as in "second quarter".
         unit_word: The word for the part, as in "third quarter".
@@ -288,6 +290,7 @@ class _PartOfYear:
     """
 
     letter: str
+    letter_after_number: str
     numbers: str
     ordinal_words: str
     unit_word: str
@@ -297,6 +300,7 @@ class _PartOfYear:
 _PARTS_OF_YEAR: dict[Literal["quarter", "half"], _PartOfYear] = {
     "quarter": _PartOfYear(
         letter="q",
+        letter_after_number="q",
         numbers="[1-4]",
         ordinal_words="first|second|third|fourth",
         unit_word="quarter",
@@ -304,6 +308,8 @@ _PARTS_OF_YEAR: dict[Literal["quarter", "half"], _PartOfYear] = {
     ),
     "half": _PartOfYear(
         letter="h",
+        # Only a capital H: a lowercase h after a number is an hour ("1h30", "2h of downtime")
+        letter_after_number="(?-i:H)",
         numbers="[12]",
         ordinal_words="first|second",
         unit_word="half",
@@ -325,16 +331,20 @@ def _part_of_year_member(kind: Literal["quarter", "half"]) -> str:
     number = f"(?P<part_number>{part.numbers})"
     return rf"""(?:
         {part.letter}{number}
-        |{number}{part.letter}
-        |(?:{number}(?:{DIGIT_SUFFIXES})?|(?P<part_ordinal>{part.ordinal_words})){SEP_CLASS}+{part.unit_word}
+        |{number}{part.letter_after_number}
+        |(?:{number}(?:{DIGIT_SUFFIXES})|(?P<part_ordinal>{part.ordinal_words})){SEP_CLASS}+{part.unit_word}
     )"""
 
 
+_SEP_CLASS_WITHOUT_COMMA = "[" + SEP_CHARS.replace(",", "") + "]"
 _ISO_WEEK_NUMBER = r"5[0-3]|[1-4]\d|0[1-9]"
 # An ISO week is a part of a year too, so it shares the part-of-year families and their scan cost.
+# A bare "W" needs a two-digit week, as ISO 8601 writes it, so tax forms ("W2 2024") do not match.
 # After the year, a digit or hyphen is a day within the week ("2024-W23-2"), which is not matched.
 _ISO_WEEK_MEMBERS: dict[str, str] = {
-    "part_year": rf"w(?:eek{SEP_CLASS}+)?(?P<iso_week>{_ISO_WEEK_NUMBER}|[1-9])",
+    "part_year": (
+        rf"w(?:eek{SEP_CLASS}+(?P<iso_week>{_ISO_WEEK_NUMBER}|[1-9])|(?P<iso_week>{_ISO_WEEK_NUMBER}))"
+    ),
     "year_part": rf"w(?P<iso_week>{_ISO_WEEK_NUMBER})(?![-\d])",
 }
 
@@ -342,7 +352,9 @@ _ISO_WEEK_MEMBERS: dict[str, str] = {
 def _part_year_pattern(parts: str) -> str:
     """Match a part of a year before its year, such as "Q3 2024", "H1'24", "1H24", "third quarter of 2024", or "week 23 2024".
 
-    A year glued to a letter-first part ("Q32024") takes the narrow year range, as in MONTH_DD_YYYY. A two-digit year can be glued only to a number-first part ("4Q23"), because "Q423" could also be a quarter and a longer number.
+    Only a quarter divided from its year without a comma takes a year from 1000 to 2999 ("Q2 1500"). Other parts, and parts followed by a comma, take the narrow year range, because the number is more often a count ("H2 1000 kg", "in week 3, 1500 users"). A two-digit year can be glued only to a number-first part ("4Q23"), because "Q423" could also be a quarter and a longer number.
+
+    The pattern skips START, so a number before the part ("table 3 week 12 2024") does not stop it. Its own guard rejects a part inside a longer word.
 
     Args:
         parts: The alternation of part kinds, each in its own pattern group.
@@ -352,14 +364,14 @@ def _part_year_pattern(parts: str) -> str:
     """
     # Letters before the part belong to a longer word ("CH1") and "<" or "</" to an HTML tag ("<h1")
     return rf"""
-    {START}
     (?<![\w<])(?<!</)
     {parts}
     (?:
-        (?:{SEP_CLASS}+of)?{SEP_CHARS_REGEX}(?<!\d){YEAR_GROUP}
+        (?<=q\d|\dq|quarter)(?:{_SEP_CLASS_WITHOUT_COMMA}+of)?{_SEP_CLASS_WITHOUT_COMMA}*?(?<!\d){YEAR_GROUP}
+        |(?:{SEP_CLASS}+of)?{SEP_CHARS_REGEX}(?<!\d){YEAR_NARROW_GROUP}
         |{SEP_CHARS_REGEX}{APOSTROPHE_YEAR_GROUP}
         |(?<=[qh]\d){YEAR_NARROW_GROUP}
-        |(?<=\d[qh])(?P<year>\d\d)
+        |(?<=\d[qh])(?P<year>\d\d)(?!\p{{L}})
     )
     {END}
 """
