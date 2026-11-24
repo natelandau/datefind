@@ -182,6 +182,18 @@ def _year_number(groups: MatchGroups, today: date) -> int | None:
     return None
 
 
+def _required_year(groups: MatchGroups, today: date) -> int:
+    """Read the year of a pattern that always matches one, giving a two-digit year the century closest to `today`.
+
+    Raises:
+        RuntimeError: If the year group is empty, which means a pattern and its resolver disagree.
+    """
+    if (year := _year_number(groups=groups, today=today)) is None:
+        msg = f"Expected group 'year' in the match, got {groups.get('year')!r}"
+        raise RuntimeError(msg)
+    return year
+
+
 def _month_number(groups: MatchGroups) -> int | None:
     """Read the month from a month name or a month number."""
     if month_name := groups.get("month_name"):
@@ -244,12 +256,28 @@ def part_of_year_resolver(months_per_part: Literal[3, 6]) -> Resolver:
             part = _lookup_word(table=ORDINAL_DAY_NUMBERS, text=part_ordinal)
         else:
             part = int(_required_group(groups=groups, name="part_number"))
-        if (year := _year_number(groups=groups, today=today)) is None:
-            msg = f"Expected group 'year' in the match, got {groups.get('year')!r}"
-            raise RuntimeError(msg)
+        year = _required_year(groups=groups, today=today)
         return date(year=year, month=(part - 1) * months_per_part + 1, day=1)
 
     return resolve
+
+
+def resolve_iso_week(groups: MatchGroups, today: date) -> date | None:
+    """Resolve an ISO 8601 week number and year, such as "2024-W23", to the Monday of that week.
+
+    Args:
+        groups: The named groups of the match.
+        today: The reference day, which sets the century of a two-digit year.
+
+    Returns:
+        date | None: The Monday of the week, or None if the year has no such week, such as week 53 of 2021.
+    """
+    year = _required_year(groups=groups, today=today)
+    week = int(_required_group(groups=groups, name="iso_week"))
+    try:
+        return date.fromisocalendar(year=year, week=week, day=1)
+    except ValueError:
+        return None
 
 
 def weekday_number(name: str) -> int:

@@ -48,6 +48,7 @@ from datefind._resolvers import (
     relative_count_resolver,
     relative_word_resolver,
     resolve_calendar_date,
+    resolve_iso_week,
     resolve_weekday,
 )
 
@@ -329,8 +330,17 @@ def _part_of_year_member(kind: Literal["quarter", "half"]) -> str:
     )"""
 
 
+_ISO_WEEK_NUMBER = r"5[0-3]|[1-4]\d|0[1-9]"
+# An ISO week is a part of a year too, so it shares the part-of-year families and their scan cost.
+# After the year, a digit or hyphen is a day within the week ("2024-W23-2"), which is not matched.
+_ISO_WEEK_MEMBERS: dict[str, str] = {
+    "part_year": rf"w(?:eek{SEP_CLASS}+)?(?P<iso_week>{_ISO_WEEK_NUMBER}|[1-9])",
+    "year_part": rf"w(?P<iso_week>{_ISO_WEEK_NUMBER})(?![-\d])",
+}
+
+
 def _part_year_pattern(parts: str) -> str:
-    """Match a part of a year before its year, such as "Q3 2024", "H1'24", "1H24", or "third quarter of 2024".
+    """Match a part of a year before its year, such as "Q3 2024", "H1'24", "1H24", "third quarter of 2024", or "week 23 2024".
 
     A year glued to a letter-first part ("Q32024") takes the narrow year range, as in MONTH_DD_YYYY. A two-digit year can be glued only to a number-first part ("4Q23"), because "Q423" could also be a quarter and a longer number.
 
@@ -356,7 +366,7 @@ def _part_year_pattern(parts: str) -> str:
 
 
 def _year_part_pattern(parts: str) -> str:
-    """Match a year before a part of that year, such as "2024 Q3" or "2024-H1".
+    """Match a year before a part of that year, such as "2024 Q3", "2024-H1", or "2024-W23".
 
     Args:
         parts: The alternation of part kinds, each in its own pattern group.
@@ -554,15 +564,27 @@ def pattern_table(first: FirstNumber, *, short_digit_dates: bool) -> tuple[DateP
             for unit in TIME_UNITS
         ),
         *(
-            DatePattern(
-                name=f"{family}_{precision}",
-                regex=_part_of_year_member(precision),
-                resolver=part_of_year_resolver(_PARTS_OF_YEAR[precision].months_per_part),
-                precision=precision,
-                family=family,
+            member
+            for family, iso_week in _ISO_WEEK_MEMBERS.items()
+            for member in (
+                *(
+                    DatePattern(
+                        name=f"{family}_{kind}",
+                        regex=_part_of_year_member(kind),
+                        resolver=part_of_year_resolver(_PARTS_OF_YEAR[kind].months_per_part),
+                        precision=kind,
+                        family=family,
+                    )
+                    for kind in _PARTS_OF_YEAR
+                ),
+                DatePattern(
+                    name=f"{family}_iso_week",
+                    regex=iso_week,
+                    resolver=resolve_iso_week,
+                    precision="week",
+                    family=family,
+                ),
             )
-            for family in ("part_year", "year_part")
-            for precision in _PARTS_OF_YEAR
         ),
         DatePattern(
             name="modified_weekday",

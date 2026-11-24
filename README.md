@@ -51,6 +51,7 @@ The examples use `now=date(2024, 3, 14)`, a Thursday.
 |                          | `Q3'24`, `3Q24`             | 2024-07-01 | quarter   |
 | Half year                | `H2 2024`, `2024 H2`        | 2024-07-01 | half      |
 |                          | `second half of 2024`       | 2024-07-01 | half      |
+| ISO week                 | `2024-W23`, `week 23 2024`  | 2024-06-03 | week      |
 | Relative word            | `today`                     | 2024-03-14 | day       |
 |                          | `day after tomorrow`        | 2024-03-16 | day       |
 |                          | `next week`                 | 2024-03-21 | week      |
@@ -114,6 +115,7 @@ A date that cannot be real in the chosen order, such as `13/01/2024` with `first
 
 - A date without a year takes the year of `now`. `March 5` with `now` in 2024 gives March 5, 2024.
 - A month, quarter, half year, or year without a day gives the first day of that period. `March 2025` gives March 1, 2025, and `Q3 2024` gives July 1, 2024.
+- An ISO week gives the Monday of that week. `2024-W23` gives June 3, 2024. A week that does not exist in its year, such as `2021-W53`, gives no date.
 
 ### Relative dates
 
