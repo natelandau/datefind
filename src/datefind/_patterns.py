@@ -17,6 +17,7 @@ from datefind._fragments import (
     DD,
     DD_FLEXIBLE,
     DIGIT_SUFFIXES,
+    FILE_NAME_TIME,
     MM,
     MM_FLEXIBLE,
     MONTH,
@@ -71,6 +72,9 @@ YEAR_NARROW_FLEXIBLE_GROUP = rf"(?P<year>{YYYY_NARROW_FLEXIBLE})"
 _UNLESS_TIME_FOLLOWS = rf"(?![\s,@]+{TIME_OF_DAY})"
 # Rejects a date that runs into more digits
 END = rf"(?![0-9]|{_UNLESS_TIME_FOLLOWS}{SEP_CLASS}[0-9])"
+# File names write a time only after a full numeric date ("IMG_20240512_1430"). After a date
+# without a day, the same digits are part of a longer number ("2024-05-143012").
+_NUMERIC_DATE_END = rf"(?![0-9]|(?![\s,@]+{TIME_OF_DAY}|{FILE_NAME_TIME}){SEP_CLASS}[0-9])"
 REQUIRED_SEPARATOR = rf"{WEAK_SEP_CLASS}+?"
 MIXED_SEPARATOR = rf"{SEP_CLASS}+?"
 # A separator with / - or . marks a numeric year clearly enough for years outside 1900 to 2099.
@@ -465,7 +469,7 @@ def _numeric_pattern(
     # A two-digit year after mixed separators is another number ("3.8, 10", "pages 3-8, 10")
     if narrow_year != YEAR_NARROW_GROUP:
         alternatives.append(join(REQUIRED_SEPARATOR, narrow_parts))
-    return f"{START}(?:{'|'.join(alternatives)}){END}"
+    return f"{START}(?:{'|'.join(alternatives)}){_NUMERIC_DATE_END}"
 
 
 def _year_month_pattern(*, year_first: bool, include_compact: bool) -> str:

@@ -125,6 +125,13 @@ def test_find_dates_with_reference_date(
         ("hello world", []),
         ("2019-99-01", []),
         ("30122022", []),  # fails b/c month is first
+        # Digits after a date that are not a file-name time make it part of a longer number
+        ("20240512_9999", []),
+        ("2024-05-12 1430", []),
+        ("2024-05-12-1430", []),
+        ("20240512-20240513", []),
+        ("2024-05-143012", []),
+        ("May 2024_1430", []),
         ("01122024", ["2024-01-12"]),
         ("01:12:2024", ["2024-01-12"]),
         ("2024-01-12", ["2024-01-12"]),
@@ -711,6 +718,16 @@ def test_find_dates_month_name_after_number(debug):
         ("next friday 3pm", "next friday", date(2024, 3, 8)),
         ("today 10:30", "today", date(2024, 3, 1)),
         ("March 5 24:00", "March 5", date(2024, 3, 5)),
+        # Timestamps in camera and screenshot file names
+        ("IMG_20240512_1430.jpg", "20240512", date(2024, 5, 12)),
+        ("IMG_20240512_143012.jpg", "20240512", date(2024, 5, 12)),
+        ("PXL_20240512_143012345.jpg", "20240512", date(2024, 5, 12)),
+        ("2024-05-12_1430", "2024-05-12", date(2024, 5, 12)),
+        ("2024-05-12_14-30-12", "2024-05-12", date(2024, 5, 12)),
+        ("Screenshot_20240512-143012_Chrome.jpg", "20240512", date(2024, 5, 12)),
+        ("signal-2024-05-12-143012.jpg", "2024-05-12", date(2024, 5, 12)),
+        ("2024-05-12 14.30.12.jpg", "2024-05-12", date(2024, 5, 12)),
+        ("2024-05-12 14-30-12.mkv", "2024-05-12", date(2024, 5, 12)),
     ],
 )
 def test_find_dates_followed_by_time(
