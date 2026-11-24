@@ -30,6 +30,8 @@ We use [Duty](https://pawamoy.github.io/duty/) as our task runner. Common tasks:
 - `duty lint` - Run all linters
 - `duty test` - Run all tests
 
+`duty test` and the prek hooks step of `duty lint` use [gate-cache](https://github.com/natelandau/gate-cache). If a check already passed on the same files, it does not run again and prints `already passed on`. To run a subset of tests, pass pytest arguments, for example `duty test -k leap`. These runs never use the cache.
+
 ## Development Guidelines
 
 When developing for datefind, please follow these guidelines:

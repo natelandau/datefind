@@ -5,7 +5,8 @@ Library that finds dates in free text. Public API: `find_dates`, `FoundDate`, an
 ## Commands
 
 - Test: `uv run duty test`. Extra args go to pytest: `uv run duty test -k leap`. Coverage below 90% fails.
-- Lint: `uv run duty lint` (ruff, ty, typos, prek hooks).
+- Lint: `uv run duty lint` (ruff check, ruff format check, ty, typos, prek hooks).
+- Run checks only through the duty tasks above, never `pytest` or `prek` directly. The `test` (no args) and `prek` tasks run through gate-cache, which skips a check that already passed on the same files. Treat an `already passed on` line as a pass. Run `uv run gate-cache --skill` before changing a gate in `duties.py`.
 - Compare with main: `uv run python scripts/compare_with_main.py` (about 1 minute). Run before committing a change to `_fragments.py` or `_patterns.py`. Every listed output difference is a regression unless the change intends it; a scan over 1.10x main's time is a regression.
 
 ## Code map

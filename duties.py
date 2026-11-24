@@ -100,12 +100,12 @@ def typos(ctx: Context) -> None:
 def prek(ctx: Context) -> None:
     """Run prek hooks."""
     ctx.run(
-        "SKIP=ty,pytest,ruff prek run --all-files",
+        "SKIP=ty,pytest,ruff-check,ruff-format gate-cache --name prek -- prek run --all-files",
         title=pyprefix("prek hooks"),
     )
 
 
-@duty(pre=[ruff, ty, typos, prek], capture=CI)
+@duty(pre=[ruff, format, ty, typos, prek], capture=CI)
 def lint(ctx: Context) -> None:
     """Run all linting duties."""
 
@@ -118,20 +118,39 @@ def update(ctx: Context) -> None:
     ctx.run(["prek", "autoupdate"], title="prek autoupdate")
 
 
+TEST_GATE_PATHS = ("src/", "tests/", "pyproject.toml", "uv.lock", "duties.py")
+TEST_JUNIT_REPORT = ".cache/junit.xml"
+
+
 @duty
 def test(ctx: Context, *cli_args: str) -> None:
-    """Test package and generate coverage reports."""
-    ctx.run(
-        tools.pytest(
-            config_file="pyproject.toml",
-            color="yes",
-        ).add_args(
-            "--cov",
-            "--cov-config=pyproject.toml",
-            "--cov-report=xml",
-            "--cov-report=term",
-            *cli_args,
-        ),
-        title=pyprefix("Running tests"),
-        capture=CI,
-    )
+    """Test package and generate coverage reports.
+
+    Skip the run when the full suite already passed on the same source, unless pytest args are given.
+    """
+    pytest_command = [
+        "pytest",
+        "-c",
+        "pyproject.toml",
+        "--color=yes",
+        "--cov",
+        "--cov-config=pyproject.toml",
+        "--cov-report=xml",
+        "--cov-report=term",
+        *cli_args,
+    ]
+    # A pass of a filtered run must not count as a pass of the full suite
+    if not cli_args:
+        path_options = [option for path in TEST_GATE_PATHS for option in ("--path", path)]
+        pytest_command = [
+            "gate-cache",
+            "--name",
+            "test",
+            "--junit",
+            TEST_JUNIT_REPORT,
+            *path_options,
+            "--",
+            *pytest_command,
+            f"--junitxml={TEST_JUNIT_REPORT}",
+        ]
+    ctx.run(pytest_command, title=pyprefix("Running tests"), capture=CI)
