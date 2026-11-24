@@ -1,3 +1,9 @@
+## v1.0.1 (2026-11-24)
+
+### Fix
+
+- **matching**: find dates in camera file names (#39)
+
 ## v1.0.0 (2026-11-24)
 
 ### BREAKING CHANGE
